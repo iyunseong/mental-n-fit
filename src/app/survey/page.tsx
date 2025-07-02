@@ -3,11 +3,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { ArrowLeft, Home } from 'lucide-react';
-import { QUESTIONS, calculateMetaType, META_TYPE_DESCRIPTIONS } from '@/lib/metaType';
+import { QUESTIONS } from '@/lib/metaType';
 
 export default function SurveyPage() {
+  const router = useRouter();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<number[]>(() => {
     if (typeof window !== 'undefined') {
@@ -16,7 +18,6 @@ export default function SurveyPage() {
     }
     return Array(QUESTIONS.length).fill(0);
   });
-  const [showResult, setShowResult] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
   // 답변 저장
@@ -48,8 +49,10 @@ export default function SurveyPage() {
       setIsCalculating(true);
       // 계산이 복잡할 수 있으니 약간의 지연
       await new Promise(resolve => setTimeout(resolve, 500));
-      setShowResult(true);
-      setIsCalculating(false);
+      
+      // 결과 페이지로 이동
+      const answersParam = encodeURIComponent(JSON.stringify(newAnswers));
+      router.push(`/results?answers=${answersParam}`);
     }
   };
 
@@ -63,15 +66,16 @@ export default function SurveyPage() {
     return Math.round(((currentQuestion + 1) / QUESTIONS.length) * 100);
   };
 
-  if (showResult) {
-    const metaType = calculateMetaType(answers);
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="max-w-3xl mx-auto px-4 py-8">
+  const question = QUESTIONS[currentQuestion];
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white rounded-lg shadow-lg p-8">
           {/* Navigation */}
           <div className="flex justify-between items-center mb-8">
             <div className="flex items-center space-x-4">
-              {currentQuestion > 0 && !showResult && (
+              {currentQuestion > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -95,58 +99,6 @@ export default function SurveyPage() {
             </Link>
           </div>
 
-          <div className="space-y-8">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold text-gray-900">
-                당신의 MetaType은
-              </h2>
-              <div className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {metaType}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <p className="text-gray-600 leading-relaxed">
-                {META_TYPE_DESCRIPTIONS[metaType]}
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                >
-                  홈으로 돌아가기
-                </Button>
-              </Link>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => {
-                  setCurrentQuestion(0);
-                  setAnswers(Array(QUESTIONS.length).fill(0));
-                  setShowResult(false);
-                  localStorage.removeItem('surveyAnswers');
-                }}
-                className="w-full sm:w-auto"
-              >
-                다시 검사하기
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const question = QUESTIONS[currentQuestion];
-
-  return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg p-8">
           {/* 진행률 표시 */}
           <div className="mb-8">
             <div className="flex justify-between text-sm text-gray-600 mb-2">
@@ -196,9 +148,12 @@ export default function SurveyPage() {
 
           {/* 로딩 상태 */}
           {isCalculating && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="bg-white p-4 rounded-lg shadow-lg">
-                <p className="text-lg">결과를 계산중입니다...</p>
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-8 rounded-lg shadow-lg">
+                <div className="flex items-center space-x-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="text-lg">결과를 계산중입니다...</p>
+                </div>
               </div>
             </div>
           )}
