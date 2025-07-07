@@ -1,13 +1,51 @@
 // src/app/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { User } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/Button';
 import { ArrowRight, Brain, Heart, Target, Users, Clock, Activity, Zap, CheckCircle, Menu, X } from 'lucide-react';
+import { auth } from '@/lib/supabase';
+import { UserProfile } from '@/lib/authTypes';
 
 const LandingPage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // 사용자 인증 상태 확인
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const currentUser = await auth.getCurrentUser();
+        setUser(currentUser);
+        
+        // 사용자가 있으면 프로필 정보도 가져오기
+        if (currentUser) {
+          const userProfile = await auth.getUserProfile(currentUser.id);
+          setProfile(userProfile);
+        }
+      } catch (error) {
+        console.error('인증 상태 확인 실패:', error);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      setUser(null);
+      setProfile(null);
+    } catch (error) {
+      console.error('로그아웃 실패:', error);
+    }
+  };
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -42,11 +80,39 @@ const LandingPage = () => {
               <button onClick={() => scrollToSection('how-it-works')} className="text-gray-600 hover:text-blue-600 transition-colors">
                 작동원리
               </button>
-              <Link href="/survey">
-                <Button variant="primary" size="sm">
-                  무료 진단 시작
-                </Button>
-              </Link>
+              
+              {/* 인증 관련 버튼들 */}
+              {authLoading ? (
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              ) : user ? (
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-700">안녕하세요, {profile?.nickname || user.email?.split('@')[0]}님!</span>
+                  <Link href="/dashboard">
+                    <Button variant="outline" size="sm">
+                      대시보드
+                    </Button>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="text-gray-600 hover:text-gray-900 text-sm"
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-4">
+                  <Link href="/login">
+                    <Button variant="outline" size="sm">
+                      로그인
+                    </Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button variant="primary" size="sm">
+                      회원가입
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Mobile Menu Button */}
@@ -90,15 +156,58 @@ const LandingPage = () => {
               >
                 작동원리
               </button>
-              <Link 
-                href="/survey"
-                className="block w-full px-4 py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <Button variant="primary" size="sm" className="w-full">
-                  무료 진단 시작
-                </Button>
-              </Link>
+              
+              {/* 모바일 인증 버튼들 */}
+              {authLoading ? (
+                <div className="flex justify-center px-4 py-2">
+                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : user ? (
+                <div className="px-4 py-2 space-y-4">
+                  <div className="text-sm text-gray-700 text-center">
+                    안녕하세요, {profile?.nickname || user.email?.split('@')[0]}님!
+                  </div>
+                  <Link 
+                    href="/dashboard"
+                    className="block w-full"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Button variant="outline" size="sm" className="w-full">
+                      대시보드
+                    </Button>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="block w-full text-center py-2 text-gray-600 hover:text-gray-900"
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              ) : (
+                <div className="px-4 py-2 space-y-4">
+                  <Link 
+                    href="/login"
+                    className="block w-full"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Button variant="outline" size="sm" className="w-full">
+                      로그인
+                    </Button>
+                  </Link>
+                  <Link 
+                    href="/register"
+                    className="block w-full"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Button variant="primary" size="sm" className="w-full">
+                      회원가입
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </div>
