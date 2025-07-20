@@ -6,21 +6,14 @@ import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
 import { auth } from '@/lib/supabase'
 import { UserProfile } from '@/lib/authTypes'
-import { Brain, Home, User as UserIcon, Menu, X, Activity, Weight } from 'lucide-react'
-import InbodyForm from '@/components/InbodyForm'
-import WorkoutLogForm from '@/components/WorkoutLogForm'
-import InbodyTrendChart from '@/components/InbodyTrendChart'
-import VolumeTrendChart from '@/components/VolumeTrendChart'
+import { Brain, Home, User as UserIcon, Menu, X, ArrowLeft, Mail, Calendar, Shield } from 'lucide-react'
 
-export default function DashboardPage() {
+export default function ProfilePage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'inbody' | 'workout'>('inbody')
-  const [chartRefreshTrigger, setChartRefreshTrigger] = useState(0)
-  const [workoutChartRefreshTrigger, setWorkoutChartRefreshTrigger] = useState(0)
 
   // 컴포넌트 마운트 시 사용자 정보 가져오기
   useEffect(() => {
@@ -56,16 +49,6 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('로그아웃 실패:', error)
     }
-  }
-
-  // 차트 새로고침 핸들러
-  const handleInbodyDataSaved = () => {
-    setChartRefreshTrigger(prev => prev + 1);
-  }
-
-  // 워크아웃 차트 새로고침 핸들러
-  const handleWorkoutDataSaved = () => {
-    setWorkoutChartRefreshTrigger(prev => prev + 1);
   }
 
   // 로딩 중일 때 표시할 화면
@@ -106,6 +89,9 @@ export default function DashboardPage() {
                 <Home className="w-4 h-4" />
                 <span>홈</span>
               </Link>
+              <Link href="/dashboard" className="text-gray-600 hover:text-blue-600 transition-colors">
+                대시보드
+              </Link>
               <Link href="/survey" className="text-gray-600 hover:text-blue-600 transition-colors">
                 MetaType 16
               </Link>
@@ -115,7 +101,7 @@ export default function DashboardPage() {
               
               {/* 사용자 아이콘 */}
               <div className="flex items-center space-x-4">
-                <Link href="/profile" className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors">
+                <Link href="/profile" className="p-2 rounded-full bg-blue-100 text-blue-600">
                   <UserIcon className="w-5 h-5" />
                 </Link>
                 <button
@@ -150,6 +136,13 @@ export default function DashboardPage() {
               >
                 <Home className="w-4 h-4" />
                 <span>홈</span>
+              </Link>
+              <Link 
+                href="/dashboard"
+                className="block w-full text-left px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                대시보드
               </Link>
               <Link 
                 href="/survey"
@@ -193,124 +186,120 @@ export default function DashboardPage() {
 
       {/* 메인 콘텐츠 */}
       <main>
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          {/* 대시보드 헤더 */}
+        <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
+          {/* 뒤로가기 버튼 */}
+          <div className="px-4 mb-6">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>뒤로가기</span>
+            </button>
+          </div>
+
+          {/* 프로필 헤더 */}
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">대시보드</h1>
-              <p className="text-gray-600">
-                안녕하세요, {profile?.nickname || user.email?.split('@')[0]}님! 오늘도 좋은 하루 되세요.
-              </p>
+              <div className="flex items-center space-x-4 mb-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                  <UserIcon className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">
+                    {profile?.nickname || '사용자'}
+                  </h1>
+                  <p className="text-gray-600">{user.email}</p>
+                </div>
+              </div>
             </div>
           </div>
           
-          {/* 대시보드 컨텐츠 */}
+          {/* 프로필 정보 카드 */}
           <div className="px-4 py-6 sm:px-0">
-            <div className="max-w-4xl mx-auto">
-              {/* 건강 기록 섹션 */}
-              <div>
-                <div className="mb-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    📊 건강 기록 관리
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    InBody 데이터와 운동 기록을 입력하고 관리하세요.
-                  </p>
-                </div>
+            <div className="bg-white overflow-hidden shadow rounded-lg">
+              <div className="px-4 py-5 sm:p-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-6 flex items-center space-x-2">
+                  <UserIcon className="w-5 h-5" />
+                  <span>계정 정보</span>
+                </h3>
+                
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <dt className="flex items-center space-x-2 text-sm font-medium text-gray-500">
+                      <UserIcon className="w-4 h-4" />
+                      <span>닉네임</span>
+                    </dt>
+                    <dd className="text-sm text-gray-900 font-medium">
+                      {profile?.nickname || '설정되지 않음'}
+                    </dd>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <dt className="flex items-center space-x-2 text-sm font-medium text-gray-500">
+                      <Mail className="w-4 h-4" />
+                      <span>이메일</span>
+                    </dt>
+                    <dd className="text-sm text-gray-900">{user.email}</dd>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <dt className="flex items-center space-x-2 text-sm font-medium text-gray-500">
+                      <Calendar className="w-4 h-4" />
+                      <span>가입일</span>
+                    </dt>
+                    <dd className="text-sm text-gray-900">
+                      {new Date(user.created_at).toLocaleDateString('ko-KR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </dd>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <dt className="flex items-center space-x-2 text-sm font-medium text-gray-500">
+                      <Shield className="w-4 h-4" />
+                      <span>이메일 확인</span>
+                    </dt>
+                    <dd className="text-sm">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        user.email_confirmed_at 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {user.email_confirmed_at ? '✓ 확인됨' : '⚠ 미확인'}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
 
-                {/* 탭 네비게이션 */}
-                <div className="mb-6">
-                  <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-                    <button
-                      onClick={() => setActiveTab('inbody')}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        activeTab === 'inbody'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      <Weight className="w-4 h-4" />
-                      <span>InBody 기록</span>
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('workout')}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        activeTab === 'workout'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      <Activity className="w-4 h-4" />
-                      <span>운동 기록</span>
-                    </button>
+                {/* 사용자 ID는 별도 섹션으로 */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="space-y-2">
+                    <dt className="text-sm font-medium text-gray-500">사용자 ID</dt>
+                    <dd className="text-xs text-gray-900 font-mono bg-gray-50 p-3 rounded-md break-all">
+                      {user.id}
+                    </dd>
                   </div>
                 </div>
 
-                {/* 탭 컨텐츠 */}
-                <div className="mt-4">
-                  {activeTab === 'inbody' && (
-                    <div className="space-y-8">
-                      {/* InBody 데이터 입력 섹션 */}
-                      <div>
-                        <div className="mb-4">
-                          <h4 className="text-md font-medium text-gray-800 mb-2">
-                            InBody 데이터 입력
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            체중, 근육량, 체지방률 등의 신체 데이터를 기록하세요.
-                          </p>
-                        </div>
-                        <InbodyForm onDataSaved={handleInbodyDataSaved} />
-                      </div>
-
-                      {/* InBody 추세 차트 섹션 */}
-                      <div>
-                        <div className="mb-4">
-                          <h4 className="text-md font-medium text-gray-800 mb-2">
-                            📈 InBody 추세 분석
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            골격근량과 체지방률의 변화 추세를 확인해보세요.
-                          </p>
-                        </div>
-                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                          <InbodyTrendChart refreshTrigger={chartRefreshTrigger} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {activeTab === 'workout' && (
-                    <div className="space-y-8">
-                      {/* 운동 기록 입력 섹션 */}
-                      <div>
-                        <div className="mb-4">
-                          <h4 className="text-md font-medium text-gray-800 mb-2">
-                            운동 기록 입력
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            오늘 한 운동들의 세트, 횟수 등을 기록하세요.
-                          </p>
-                        </div>
-                        <WorkoutLogForm onDataSaved={handleWorkoutDataSaved} />
-                      </div>
-
-                      {/* 운동 볼륨 추세 차트 섹션 */}
-                      <div>
-                        <div className="mb-4">
-                          <h4 className="text-md font-medium text-gray-800 mb-2">
-                            📊 운동 볼륨 추세 분석
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            일별 총 운동 볼륨(무게×반복수)의 변화 추세를 확인해보세요.
-                          </p>
-                        </div>
-                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                          <VolumeTrendChart refreshTrigger={workoutChartRefreshTrigger} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                {/* 액션 버튼들 */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Link
+                      href="/dashboard"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-center transition-colors"
+                    >
+                      대시보드로 이동
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                    >
+                      로그아웃
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

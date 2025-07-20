@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { User } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/Button';
-import { ArrowRight, Brain, Heart, Target, Users, Clock, Activity, Zap, CheckCircle, Menu, X } from 'lucide-react';
+import { ArrowRight, Brain, Heart, Target, Users, Clock, Activity, Zap, CheckCircle, Menu, X, User as UserIcon } from 'lucide-react';
 import { auth } from '@/lib/supabase';
 import { UserProfile } from '@/lib/authTypes';
 
@@ -86,7 +86,9 @@ const LandingPage = () => {
                 <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               ) : user ? (
                 <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-700">안녕하세요, {profile?.nickname || user.email?.split('@')[0]}님!</span>
+                  <Link href="/profile" className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors">
+                    <UserIcon className="w-5 h-5" />
+                  </Link>
                   <Link href="/dashboard">
                     <Button variant="outline" size="sm">
                       대시보드
@@ -164,9 +166,14 @@ const LandingPage = () => {
                 </div>
               ) : user ? (
                 <div className="px-4 py-2 space-y-4">
-                  <div className="text-sm text-gray-700 text-center">
-                    안녕하세요, {profile?.nickname || user.email?.split('@')[0]}님!
-                  </div>
+                  <Link 
+                    href="/profile"
+                    className="flex items-center justify-center space-x-2 text-sm text-gray-700 py-2"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <UserIcon className="w-4 h-4" />
+                    <span>프로필</span>
+                  </Link>
                   <Link 
                     href="/dashboard"
                     className="block w-full"
