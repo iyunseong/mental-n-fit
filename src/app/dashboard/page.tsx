@@ -6,11 +6,13 @@ import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
 import { auth } from '@/lib/supabase'
 import { UserProfile } from '@/lib/authTypes'
-import { Brain, Home, User as UserIcon, Menu, X, Activity, Weight } from 'lucide-react'
+import { Brain, Home, User as UserIcon, Menu, X, Activity, Weight, Utensils } from 'lucide-react'
 import InbodyForm from '@/components/InbodyForm'
 import WorkoutLogForm from '@/components/WorkoutLogForm'
 import InbodyTrendChart from '@/components/InbodyTrendChart'
 import VolumeTrendChart from '@/components/VolumeTrendChart'
+import MealLogForm from '@/components/MealLogForm'
+import MealTrendChart from '@/components/MealTrendChart'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -18,9 +20,10 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'inbody' | 'workout'>('inbody')
+  const [activeTab, setActiveTab] = useState<'inbody' | 'workout' | 'meal'>('inbody')
   const [chartRefreshTrigger, setChartRefreshTrigger] = useState(0)
   const [workoutChartRefreshTrigger, setWorkoutChartRefreshTrigger] = useState(0)
+  const [mealChartRefreshTrigger, setMealChartRefreshTrigger] = useState(0)
 
   // 컴포넌트 마운트 시 사용자 정보 가져오기
   useEffect(() => {
@@ -66,6 +69,11 @@ export default function DashboardPage() {
   // 워크아웃 차트 새로고침 핸들러
   const handleWorkoutDataSaved = () => {
     setWorkoutChartRefreshTrigger(prev => prev + 1);
+  }
+
+  // 식단 차트 새로고침 핸들러 (식단 차트 추가 시 사용)
+  const handleMealDataSaved = () => {
+    setMealChartRefreshTrigger(prev => prev + 1);
   }
 
   // 로딩 중일 때 표시할 화면
@@ -214,7 +222,7 @@ export default function DashboardPage() {
                     📊 건강 기록 관리
                   </h3>
                   <p className="text-sm text-gray-600">
-                    InBody 데이터와 운동 기록을 입력하고 관리하세요.
+                    InBody 데이터, 운동 기록, 식단 기록을 입력하고 관리하세요.
                   </p>
                 </div>
 
@@ -242,6 +250,17 @@ export default function DashboardPage() {
                     >
                       <Activity className="w-4 h-4" />
                       <span>운동 기록</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('meal')}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        activeTab === 'meal'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      <Utensils className="w-4 h-4" />
+                      <span>식단 기록</span>
                     </button>
                   </div>
                 </div>
@@ -307,6 +326,38 @@ export default function DashboardPage() {
                         </div>
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                           <VolumeTrendChart refreshTrigger={workoutChartRefreshTrigger} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'meal' && (
+                    <div className="space-y-8">
+                      {/* 식단 기록 입력 섹션 */}
+                      <div>
+                        <div className="mb-4">
+                          <h4 className="text-md font-medium text-gray-800 mb-2">
+                            식단 기록 입력
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            일일 식사를 기록하고 칼로리를 추적하세요.
+                          </p>
+                        </div>
+                        <MealLogForm onDataSaved={handleMealDataSaved} />
+                      </div>
+
+                      {/* 식단 칼로리 추세 차트 섹션 */}
+                      <div>
+                        <div className="mb-4">
+                          <h4 className="text-md font-medium text-gray-800 mb-2">
+                            📈 일일 칼로리 추세 분석
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            일별 총 섭취 칼로리의 변화 추세를 확인해보세요.
+                          </p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                          <MealTrendChart refreshTrigger={mealChartRefreshTrigger} />
                         </div>
                       </div>
                     </div>
