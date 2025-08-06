@@ -14,7 +14,8 @@ const MealTrendChart = ({ refreshTrigger }) => {
     const dateCaloriesMap = {};
 
     rawData.forEach(meal => {
-      const date = meal.log_date;
+      // ate_at에서 날짜 부분만 추출 (YYYY-MM-DD 형식)
+      const date = meal.ate_at.split('T')[0];
       const calories = meal.total_calories || 0;
       
       if (dateCaloriesMap[date]) {
@@ -51,12 +52,12 @@ const MealTrendChart = ({ refreshTrigger }) => {
         throw new Error('로그인이 필요합니다.');
       }
 
-      // Supabase에서 식사 이벤트 데이터 가져오기 (날짜순 정렬)
+      // Supabase에서 식사 이벤트 데이터 가져오기 (시간순 정렬)
       const { data: mealData, error: fetchError } = await supabase
         .from('meal_events')
         .select('*')
         .eq('user_id', currentUser.id)
-        .order('log_date', { ascending: true });
+        .order('ate_at', { ascending: true });
 
       if (fetchError) {
         throw fetchError;

@@ -1,3 +1,4 @@
+// src/components/InbodyTrendChart.jsx
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { supabase, auth } from '@/lib/supabase';
@@ -33,14 +34,17 @@ const InbodyTrendChart = ({ refreshTrigger }) => {
       }
 
       // 데이터 형식 변환
-      const formattedData = inbodyData.map(item => ({
+      const formattedData = inbodyData.map((item, index) => ({
         ...item,
         date: item.log_date,
         displayDate: new Date(item.log_date).toLocaleDateString('ko-KR', {
           month: '2-digit',
           day: '2-digit'
-        })
-      }));
+        }),
+        // 정렬을 위한 날짜 객체
+        sortDate: new Date(item.log_date)
+      })).sort((a, b) => a.sortDate - b.sortDate)
+        .map((item, index) => ({...item, index})); // 정렬 후 인덱스 추가
 
       setData(formattedData);
     } catch (err) {
@@ -79,50 +83,6 @@ const InbodyTrendChart = ({ refreshTrigger }) => {
   useEffect(() => {
     filterDataByTimeRange();
   }, [data, timeRange]);
-
-  // Y축 도메인 계산
-  const getYAxisDomains = () => {
-    if (filteredData.length === 0) {
-      return { kgDomain: [0, 50], percentageDomain: [0, 30] };
-    }
-
-    // 골격근량 범위 계산
-    const muscleMasses = filteredData
-      .map(d => d.skeletal_muscle_mass_kg)
-      .filter(val => val !== null && val !== undefined);
-    
-    // 체지방률 범위 계산
-    const bodyFats = filteredData
-      .map(d => d.body_fat_percentage)
-      .filter(val => val !== null && val !== undefined);
-
-    let kgDomain = [0, 50];
-    let percentageDomain = [0, 30];
-
-    if (muscleMasses.length > 0) {
-      const minMuscle = Math.min(...muscleMasses);
-      const maxMuscle = Math.max(...muscleMasses);
-      const margin = (maxMuscle - minMuscle) * 0.1 || 5; // 10% 마진 또는 최소 5
-      kgDomain = [
-        Math.max(0, minMuscle - margin),
-        maxMuscle + margin
-      ];
-    }
-
-    if (bodyFats.length > 0) {
-      const minFat = Math.min(...bodyFats);
-      const maxFat = Math.max(...bodyFats);
-      const margin = (maxFat - minFat) * 0.1 || 3; // 10% 마진 또는 최소 3
-      percentageDomain = [
-        Math.max(0, minFat - margin),
-        maxFat + margin
-      ];
-    }
-
-    return { kgDomain, percentageDomain };
-  };
-
-  const { kgDomain, percentageDomain } = getYAxisDomains();
 
   // 커스텀 툴팁
   const CustomTooltip = ({ active, payload, label }) => {
@@ -193,53 +153,93 @@ const InbodyTrendChart = ({ refreshTrigger }) => {
       {/* 차트 */}
       <div className="w-full h-96">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={filteredData} margin={{ top: 5, right: 80, left: 20, bottom: 5 }}>
+          <LineChart data={filteredData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis 
-              dataKey="displayDate" 
+              dataKey="index"
               tick={{ fontSize: 12 }}
+              tickFormatter={(value) => {
+                // 인덱스를 사용하여 해당 데이터의 displayDate 반환
+                return filteredData[value]?.displayDate || '';
+              }}
             />
-            {/* 왼쪽 Y축 - 골격근량 (kg) */}
+            {/* 왼쪽 Y축 - 골격근량 전용 */}
             <YAxis 
-              yAxisId="kg"
+              yAxisId="muscle"
               orientation="left"
               tick={{ fontSize: 12 }}
               label={{ value: '골격근량 (kg)', angle: -90, position: 'insideLeft' }}
-              domain={kgDomain}
+              domain={[
+                (dataMin) => Math.max(0, dataMin - 2),
+                (dataMax) => dataMax + 2
+              ]}
+              tickFormatter={(value) => Math.round(value).toString()}
             />
-            {/* 오른쪽 Y축 - 체지방률 (%) */}
+            {/* 가운데 Y축 - 체중 전용 */}
             <YAxis 
-              yAxisId="percentage"
+              yAxisId="weight"
               orientation="right"
               tick={{ fontSize: 12 }}
-              label={{ value: '체지방률 (%)', angle: 90, position: 'insideRight' }}
-              domain={percentageDomain}
+              label={{ value: '체중 (kg)', angle: 90, position: 'outside', offset: -40 }}
+              domain={[
+                (dataMin) => Math.max(0, dataMin - 2),
+                (dataMax) => dataMax + 2
+              ]}
+              tickFormatter={(value) => Math.round(value).toString()}
+              axisLine={{ stroke: '#10B981' }}
+              tickLine={{ stroke: '#10B981' }}
+            />
+            {/* 오른쪽 Y축 - 체지방률 전용 */}
+            <YAxis 
+              yAxisId="fat"
+              orientation="right"
+              tick={{ fontSize: 12 }}
+              label={{ value: '체지방률 (%)', angle: 90, position: 'outside', offset: 10 }}
+              domain={[
+                (dataMin) => Math.max(0, dataMin - 1),
+                (dataMax) => dataMax + 1
+              ]}
+              tickFormatter={(value) => Math.round(value).toString()}
+              axisLine={{ stroke: '#EF4444' }}
+              tickLine={{ stroke: '#EF4444' }}
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
             
             {/* 골격근량 라인 */}
             <Line
-              yAxisId="kg"
+              yAxisId="muscle"
               type="monotone"
               dataKey="skeletal_muscle_mass_kg"
               stroke="#3B82F6"
-              strokeWidth={2}
-              dot={{ fill: '#3B82F6', r: 4 }}
+              strokeWidth={3}
+              dot={{ fill: '#3B82F6', r: 6 }}
               name="골격근량 (kg)"
-              connectNulls={false}
+              connectNulls={true}
+            />
+            
+            {/* 체중 라인 */}
+            <Line
+              yAxisId="weight"
+              type="monotone"
+              dataKey="weight_kg"
+              stroke="#10B981"
+              strokeWidth={3}
+              dot={{ fill: '#10B981', r: 6 }}
+              name="체중 (kg)"
+              connectNulls={true}
             />
             
             {/* 체지방률 라인 */}
             <Line
-              yAxisId="percentage"
+              yAxisId="fat"
               type="monotone"
               dataKey="body_fat_percentage"
               stroke="#EF4444"
-              strokeWidth={2}
-              dot={{ fill: '#EF4444', r: 4 }}
+              strokeWidth={3}
+              dot={{ fill: '#EF4444', r: 6 }}
               name="체지방률 (%)"
-              connectNulls={false}
+              connectNulls={true}
             />
           </LineChart>
         </ResponsiveContainer>

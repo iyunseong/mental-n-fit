@@ -6,13 +6,15 @@ import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
 import { auth } from '@/lib/supabase'
 import { UserProfile } from '@/lib/authTypes'
-import { Brain, Home, User as UserIcon, Menu, X, Activity, Weight, Utensils } from 'lucide-react'
+import { Brain, Home, User as UserIcon, Menu, X, Activity, Weight, Utensils, Heart, Calendar } from 'lucide-react'
 import InbodyForm from '@/components/InbodyForm'
 import WorkoutLogForm from '@/components/WorkoutLogForm'
 import InbodyTrendChart from '@/components/InbodyTrendChart'
 import VolumeTrendChart from '@/components/VolumeTrendChart'
 import MealLogForm from '@/components/MealLogForm'
 import MealTrendChart from '@/components/MealTrendChart'
+import DailyConditionForm from '@/components/DailyConditionForm'
+import HealthCalendar from '@/components/HealthCalendar'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -20,10 +22,11 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'inbody' | 'workout' | 'meal'>('inbody')
+  const [activeTab, setActiveTab] = useState<'inbody' | 'workout' | 'meal' | 'condition' | 'calendar'>('inbody')
   const [chartRefreshTrigger, setChartRefreshTrigger] = useState(0)
   const [workoutChartRefreshTrigger, setWorkoutChartRefreshTrigger] = useState(0)
   const [mealChartRefreshTrigger, setMealChartRefreshTrigger] = useState(0)
+  const [conditionChartRefreshTrigger, setConditionChartRefreshTrigger] = useState(0)
 
   // 컴포넌트 마운트 시 사용자 정보 가져오기
   useEffect(() => {
@@ -76,6 +79,12 @@ export default function DashboardPage() {
     setMealChartRefreshTrigger(prev => prev + 1);
   }
 
+  // 컨디션 차트 새로고침 핸들러 (차트 컴포넌트 추가 시 사용)
+  const handleConditionDataSaved = () => {
+    setConditionChartRefreshTrigger(prev => prev + 1);
+    console.log('컨디션 데이터가 저장되었습니다'); // 임시: 차트가 추가되면 제거
+  }
+
   // 로딩 중일 때 표시할 화면
   if (loading) {
     return (
@@ -102,7 +111,7 @@ export default function DashboardPage() {
             <Link href="/" className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                 <Brain className="w-5 h-5 text-white" />
-              </div>
+            </div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 mental-n-fit
               </h1>
@@ -122,18 +131,18 @@ export default function DashboardPage() {
               </Link>
               
               {/* 사용자 아이콘 */}
-              <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4">
                 <Link href="/profile" className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors">
                   <UserIcon className="w-5 h-5" />
                 </Link>
-                <button
-                  onClick={handleLogout}
+              <button
+                onClick={handleLogout}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors"
-                >
-                  로그아웃
-                </button>
-              </div>
+              >
+                로그아웃
+              </button>
             </div>
+          </div>
 
             {/* Mobile Menu Button */}
             <button 
@@ -220,18 +229,18 @@ export default function DashboardPage() {
                 <div className="mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     📊 건강 기록 관리
-                  </h3>
+                    </h3>
                   <p className="text-sm text-gray-600">
-                    InBody 데이터, 운동 기록, 식단 기록을 입력하고 관리하세요.
+                    InBody 데이터, 운동 기록, 식단 기록, 일일 컨디션, 건강 캘린더를 확인하고 관리하세요.
                   </p>
                 </div>
 
                 {/* 탭 네비게이션 */}
                 <div className="mb-6">
-                  <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                  <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg overflow-x-auto">
                     <button
                       onClick={() => setActiveTab('inbody')}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         activeTab === 'inbody'
                           ? 'bg-white text-blue-600 shadow-sm'
                           : 'text-gray-600 hover:text-gray-900'
@@ -242,7 +251,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('workout')}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         activeTab === 'workout'
                           ? 'bg-white text-blue-600 shadow-sm'
                           : 'text-gray-600 hover:text-gray-900'
@@ -253,7 +262,7 @@ export default function DashboardPage() {
                     </button>
                     <button
                       onClick={() => setActiveTab('meal')}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         activeTab === 'meal'
                           ? 'bg-white text-blue-600 shadow-sm'
                           : 'text-gray-600 hover:text-gray-900'
@@ -261,6 +270,28 @@ export default function DashboardPage() {
                     >
                       <Utensils className="w-4 h-4" />
                       <span>식단 기록</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('condition')}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                        activeTab === 'condition'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      <Heart className="w-4 h-4" />
+                      <span>컨디션 기록</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('calendar')}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                        activeTab === 'calendar'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      <span>건강 캘린더</span>
                     </button>
                   </div>
                 </div>
@@ -359,6 +390,40 @@ export default function DashboardPage() {
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                           <MealTrendChart refreshTrigger={mealChartRefreshTrigger} />
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'condition' && (
+                    <div className="space-y-8">
+                      {/* 컨디션 기록 입력 섹션 */}
+                      <div>
+                        <div className="mb-4">
+                          <h4 className="text-md font-medium text-gray-800 mb-2">
+                            일일 컨디션 입력
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            오늘의 전반적인 기분, 피로도, 수면의 질을 기록하세요.
+                          </p>
+                        </div>
+                        <DailyConditionForm onDataSaved={handleConditionDataSaved} />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'calendar' && (
+                    <div className="space-y-8">
+                      {/* 건강 캘린더 섹션 */}
+                      <div>
+                        <div className="mb-4">
+                          <h4 className="text-md font-medium text-gray-800 mb-2">
+                            📅 건강 캘린더
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            월별로 기록된 컨디션 데이터를 한눈에 확인하고 패턴을 분석해보세요.
+                          </p>
+                        </div>
+                        <HealthCalendar />
                       </div>
                     </div>
                   )}
