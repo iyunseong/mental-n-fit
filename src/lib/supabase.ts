@@ -2,8 +2,15 @@ import { createClient } from '@supabase/supabase-js'
 import { UserProfile } from './authTypes'
 
 // Supabase 프로젝트 설정값들
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+// 환경 변수 필수 검증
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Supabase 환경 변수 누락: NEXT_PUBLIC_SUPABASE_URL 또는 NEXT_PUBLIC_SUPABASE_ANON_KEY가 설정되지 않았습니다.'
+  )
+}
 
 // Supabase 클라이언트 인스턴스 생성 (싱글톤 패턴)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
@@ -77,7 +84,7 @@ export const auth = {
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (error) {
       console.error('프로필 조회 실패:', error)

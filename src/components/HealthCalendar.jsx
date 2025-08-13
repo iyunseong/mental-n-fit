@@ -1,26 +1,40 @@
 // src/components/HealthCalendar.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { supabase, auth } from '@/lib/supabase';
 
-const HealthCalendar = () => {
-  // 상태 관리
+const HealthCalendar = ({ onDateSelect = null, compact = false }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [monthlyMoods, setMonthlyMoods] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [legendOpen, setLegendOpen] = useState(!compact);
 
   // 기분 이모지 매핑
   const moodEmojis = {
     great: '🤩',
-    good: '😊', 
+    good: '😊',
     normal: '😐',
     bad: '😔',
     awful: '😵'
   };
 
-  // 현재 보이는 달의 데이터 가져오기
+  // 피로도 색상 매핑
+  const fatigueColors = {
+    low: '#10B981',    // green-500
+    medium: '#F59E0B', // amber-500
+    high: '#EF4444'    // red-500
+  };
+
+  // 수면의 질 색상 매핑
+  const sleepColors = {
+    good: '#3B82F6',   // blue-500
+    normal: '#6B7280', // gray-500
+    bad: '#8B5CF6'     // purple-500
+  };
+
+  // 특정 월의 컨디션 데이터 가져오기
   const fetchMonthlyMoods = async (date) => {
     try {
       setIsLoading(true);
@@ -31,7 +45,7 @@ const HealthCalendar = () => {
         throw new Error('로그인이 필요합니다.');
       }
 
-      // 월의 시작일과 마지막일 계산
+      // 해당 월의 첫째 날과 마지막 날 계산
       const year = date.getFullYear();
       const month = date.getMonth();
       const firstDay = new Date(year, month, 1).toISOString().split('T')[0];
@@ -39,24 +53,22 @@ const HealthCalendar = () => {
 
       const { data, error: fetchError } = await supabase
         .from('daily_conditions')
-        .select('log_date, overall_mood, fatigue_level, sleep_quality')
+        .select('log_date, overall_mood, fatigue_level, sleep_quality, diary_entry')
         .eq('user_id', currentUser.id)
         .gte('log_date', firstDay)
-        .lte('log_date', lastDay)
-        .order('log_date', { ascending: true });
+        .lte('log_date', lastDay);
 
       if (fetchError) {
         throw fetchError;
       }
 
-      // 날짜를 키로 하는 객체로 변환
-      const moodsByDate = {};
-      data.forEach(record => {
-        moodsByDate[record.log_date] = record;
+      // 날짜별로 데이터 매핑
+      const moodMap = {};
+      data?.forEach((record) => {
+        moodMap[record.log_date] = record;
       });
 
-      setMonthlyMoods(moodsByDate);
-
+      setMonthlyMoods(moodMap);
     } catch (err) {
       console.error('월별 컨디션 데이터 가져오기 오류:', err);
       setError(err.message || '데이터를 가져오는 중 오류가 발생했습니다.');
@@ -65,395 +77,347 @@ const HealthCalendar = () => {
     }
   };
 
-  // 컴포넌트 마운트 시 및 보이는 달이 변경될 때 데이터 가져오기
+  // 컴포넌트 마운트 시 현재 월 데이터 가져오기
   useEffect(() => {
     fetchMonthlyMoods(selectedDate);
   }, []);
 
-  // 날짜 선택 핸들러
-  const handleDateChange = (date) => {
-    setSelectedDate(date);
-    console.log('선택된 날짜:', date.toISOString().split('T')[0]);
-  };
-
-  // 캘린더 뷰 변경 시 (월 변경) 핸들러
-  const handleActiveStartDateChange = ({ activeStartDate }) => {
+  // 월 변경 시 데이터 새로고침
+  const onActiveStartDateChange = ({ activeStartDate }) => {
     if (activeStartDate) {
       fetchMonthlyMoods(activeStartDate);
     }
   };
 
-  // 각 날짜 타일에 표시할 내용
-  const getTileContent = ({ date, view }) => {
-    // 월 뷰에서만 표시
-    if (view !== 'month') {
-      return null;
+  // 월 통계 (로깅된 날짜 수)
+  const loggedDaysCount = useMemo(() => Object.keys(monthlyMoods || {}).length, [monthlyMoods]);
+
+  // 날짜 클릭 핸들러
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+    console.log('선택된 날짜:', date.toISOString().split('T')[0]);
+    
+    // 부모 컴포넌트에 선택된 날짜 전달
+    if (typeof onDateSelect === 'function') {
+      onDateSelect(date.toISOString().split('T')[0]);
     }
+  };
+
+  // 타일 컨텐츠 생성 (각 날짜 셀 내용)
+  const getTileContent = ({ date, view }) => {
+    if (view !== 'month') return null;
 
     const dateString = date.toISOString().split('T')[0];
     const moodData = monthlyMoods[dateString];
-    
-    if (!moodData) {
-      return null;
-    }
+
+    if (!moodData) return null;
 
     const moodEmoji = moodEmojis[moodData.overall_mood];
-    
+    const hasDiary = moodData.diary_entry && moodData.diary_entry.trim().length > 0;
+
     return (
-      <div className="flex flex-col items-center justify-center mt-1">
-        <span className="text-lg">{moodEmoji}</span>
-        <div className="flex space-x-1 mt-1">
-          {/* 피로도 표시 (작은 점들) */}
-          <div className={`w-1 h-1 rounded-full ${
-            moodData.fatigue_level === 'low' ? 'bg-green-400' :
-            moodData.fatigue_level === 'medium' ? 'bg-yellow-400' : 'bg-red-400'
-          }`}></div>
-          {/* 수면의 질 표시 (작은 점들) */}
-          <div className={`w-1 h-1 rounded-full ${
-            moodData.sleep_quality === 'good' ? 'bg-blue-400' :
-            moodData.sleep_quality === 'normal' ? 'bg-gray-400' : 'bg-purple-400'
-          }`}></div>
+      <div className="flex flex-col items-center justify-center">
+        <span className={`${compact ? 'text-base' : 'text-lg'}`}>{moodEmoji}</span>
+        <div className="flex items-center space-x-1 mt-0.5">
+          {/* 피로도 점 */}
+          <div 
+            className={`${compact ? 'w-1 h-1' : 'w-2 h-2'} rounded-full`}
+            style={{ backgroundColor: fatigueColors[moodData.fatigue_level] }}
+            title={`피로도: ${moodData.fatigue_level}`}
+          />
+          {/* 수면의 질 점 */}
+          <div 
+            className={`${compact ? 'w-1 h-1' : 'w-2 h-2'} rounded-full`}
+            style={{ backgroundColor: sleepColors[moodData.sleep_quality] }}
+            title={`수면의 질: ${moodData.sleep_quality}`}
+          />
+          {/* 일기 표시 (작은 책 아이콘) */}
+          {hasDiary && (
+            <div className={`${compact ? 'text-xs' : 'text-xs'}`}>📖</div>
+          )}
         </div>
       </div>
     );
   };
 
-  // 특정 날짜에 클래스 추가 (기록이 있는 날짜 스타일링)
+  // 타일 클래스 (시각적 강조)
   const getTileClassName = ({ date, view }) => {
-    if (view !== 'month') {
-      return null;
-    }
-
+    if (view !== 'month') return undefined;
     const dateString = date.toISOString().split('T')[0];
     const moodData = monthlyMoods[dateString];
-    
-    if (moodData) {
-      return 'has-mood-data';
-    }
-    
-    return null;
+    const classes = [];
+    if (moodData) classes.push('rc-has-data');
+    if (dateString === new Date().toISOString().split('T')[0]) classes.push('rc-today');
+    return classes.join(' ');
   };
 
+  // 선택된 날짜의 데이터 가져오기
+  const selectedDateString = selectedDate.toISOString().split('T')[0];
+  const moodData = monthlyMoods[selectedDateString];
+  const hasDiary = moodData?.diary_entry && moodData.diary_entry.trim().length > 0;
+
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
+    <div className={`${compact ? 'p-4' : 'max-w-4xl mx-auto p-6'} bg-white rounded-lg shadow-sm border border-gray-200`}>
       {/* 헤더 */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">📅 건강 캘린더</h2>
-        <p className="text-gray-600">
-          매일의 컨디션을 한눈에 확인하세요. 이모지는 기분을, 색상 점들은 피로도(녹/노/빨)와 수면의 질(파/회/보)을 나타냅니다.
-        </p>
-      </div>
+      {!compact && (
+        <div className="flex items-center justify-between mb-4">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold text-gray-900">건강 캘린더</h2>
+            <p className="text-sm text-gray-600">날짜를 클릭하여 해당 날의 상세 기록을 확인하세요</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500">기록된 날: <strong className="text-gray-700">{loggedDaysCount}</strong></span>
+            <button
+              type="button"
+              onClick={() => setLegendOpen(!legendOpen)}
+              className="px-3 py-1.5 rounded-md text-sm border border-gray-200 hover:bg-gray-50 text-gray-700"
+            >
+              {legendOpen ? '범례 숨기기' : '범례 보기'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-200">
-          {error}
+        <div className={`${compact ? 'mb-4 p-3' : 'mb-6 p-4'} bg-red-50 border border-red-200 rounded-lg`}>
+          <p className="text-red-700">{error}</p>
         </div>
       )}
 
       {/* 로딩 상태 */}
       {isLoading && (
-        <div className="mb-4 text-center text-gray-600">
-          📊 컨디션 데이터를 불러오는 중...
+        <div className={`${compact ? 'mb-4' : 'mb-6'} text-center`}>
+          <p className="text-gray-600">데이터를 불러오는 중...</p>
         </div>
       )}
 
-      {/* 범례 */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-        <h3 className="text-sm font-medium text-gray-700 mb-2">📖 범례</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          {/* 기분 범례 */}
-          <div>
-            <h4 className="font-medium text-gray-600 mb-1">기분</h4>
-            <div className="space-y-1">
-              <div className="flex items-center space-x-2">
-                <span>🤩</span><span>최고</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span>😊</span><span>좋음</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span>😐</span><span>보통</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span>😔</span><span>나쁨</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span>😵</span><span>최악</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* 피로도 범례 */}
-          <div>
-            <h4 className="font-medium text-gray-600 mb-1">피로도</h4>
-            <div className="space-y-1">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-green-400"></div><span>낮음</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-yellow-400"></div><span>보통</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-red-400"></div><span>높음</span>
+      {/* 범례 - compact 모드에서는 토글되며 기본 닫힘 */}
+      {!compact && legendOpen && (
+        <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">📖 범례</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+            {/* 기분 범례 */}
+            <div>
+              <h4 className="font-medium text-gray-600 mb-1">기분</h4>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span>🤩</span><span>최고</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span>😊</span><span>좋음</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span>😐</span><span>보통</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span>😔</span><span>나쁨</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span>😵</span><span>최악</span>
+                </div>
               </div>
             </div>
-          </div>
-          
-          {/* 수면의 질 범례 */}
-          <div>
-            <h4 className="font-medium text-gray-600 mb-1">수면의 질</h4>
-            <div className="space-y-1">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-blue-400"></div><span>좋음</span>
+
+            {/* 피로도 범례 */}
+            <div>
+              <h4 className="font-medium text-gray-600 mb-1">피로도</h4>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div><span>낮음</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-amber-500"></div><span>보통</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div><span>높음</span>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-gray-400"></div><span>보통</span>
+            </div>
+
+            {/* 수면의 질 범례 */}
+            <div>
+              <h4 className="font-medium text-gray-600 mb-1">수면의 질</h4>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div><span>좋음</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-gray-500"></div><span>보통</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-500"></div><span>나쁨</span>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-purple-400"></div><span>나쁨</span>
+            </div>
+
+            {/* 일기 범례 */}
+            <div>
+              <h4 className="font-medium text-gray-600 mb-1">일기</h4>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span>📖</span><span>일기 있음</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 캘린더 */}
-      <div className="calendar-container">
+      <div className={`mb-4`}>
         <Calendar
-          value={selectedDate}
           onChange={handleDateChange}
-          onActiveStartDateChange={handleActiveStartDateChange}
+          onActiveStartDateChange={onActiveStartDateChange}
+          value={selectedDate}
           tileContent={getTileContent}
           tileClassName={getTileClassName}
           locale="ko-KR"
-          calendarType="gregory"
-          showNeighboringMonth={false}
-          next2Label={null}
-          prev2Label={null}
           formatDay={(locale, date) => date.getDate().toString()}
+          showNeighboringMonth={false}
+          className="w-full border-none"
         />
       </div>
 
-      {/* 선택된 날짜 정보 */}
-      {selectedDate && (
+      {/* 선택된 날짜 정보 - compact 모드에서는 표시하지 않음 */}
+      {!compact && selectedDate && (
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="text-lg font-medium text-blue-800 mb-2">
-            📋 {selectedDate.toLocaleDateString('ko-KR')} 컨디션
+          <h3 className="text-lg font-medium text-blue-800 mb-3">
+            {selectedDate.toLocaleDateString('ko-KR', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              weekday: 'long'
+            })}
           </h3>
-          {(() => {
-            const dateString = selectedDate.toISOString().split('T')[0];
-            const moodData = monthlyMoods[dateString];
-            
-            if (!moodData) {
-              return (
-                <p className="text-blue-600">
-                  이 날의 컨디션 기록이 없습니다. 대시보드에서 기록을 추가해보세요!
-                </p>
-              );
-            }
-            
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div className="flex items-center space-x-2">
-                  <span className="text-lg">{moodEmojis[moodData.overall_mood]}</span>
-                  <span className="text-blue-700">
-                    기분: <strong>{
-                      moodData.overall_mood === 'great' ? '최고' :
-                      moodData.overall_mood === 'good' ? '좋음' :
-                      moodData.overall_mood === 'normal' ? '보통' :
-                      moodData.overall_mood === 'bad' ? '나쁨' : '최악'
-                    }</strong>
-                  </span>
+          
+          {moodData ? (
+            <div className="space-y-3">
+              {/* 기분, 피로도, 수면의 질 */}
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div className="text-center">
+                  <div className="text-2xl mb-1">{moodEmojis[moodData.overall_mood]}</div>
+                  <div className="font-medium">기분: {
+                    moodData.overall_mood === 'great' ? '최고' :
+                    moodData.overall_mood === 'good' ? '좋음' :
+                    moodData.overall_mood === 'normal' ? '보통' :
+                    moodData.overall_mood === 'bad' ? '나쁨' : '최악'
+                  }</div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-3 h-3 rounded-full ${
-                    moodData.fatigue_level === 'low' ? 'bg-green-400' :
-                    moodData.fatigue_level === 'medium' ? 'bg-yellow-400' : 'bg-red-400'
-                  }`}></div>
-                  <span className="text-blue-700">
-                    피로도: <strong>{
-                      moodData.fatigue_level === 'low' ? '낮음' :
-                      moodData.fatigue_level === 'medium' ? '보통' : '높음'
-                    }</strong>
-                  </span>
+                <div className="text-center">
+                  <div 
+                    className="w-6 h-6 rounded-full mx-auto mb-1"
+                    style={{ backgroundColor: fatigueColors[moodData.fatigue_level] }}
+                  />
+                  <div className="font-medium">피로도: {
+                    moodData.fatigue_level === 'low' ? '낮음' :
+                    moodData.fatigue_level === 'medium' ? '보통' : '높음'
+                  }</div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-3 h-3 rounded-full ${
-                    moodData.sleep_quality === 'good' ? 'bg-blue-400' :
-                    moodData.sleep_quality === 'normal' ? 'bg-gray-400' : 'bg-purple-400'
-                  }`}></div>
-                  <span className="text-blue-700">
-                    수면: <strong>{
-                      moodData.sleep_quality === 'good' ? '좋음' :
-                      moodData.sleep_quality === 'normal' ? '보통' : '나쁨'
-                    }</strong>
-                  </span>
+                <div className="text-center">
+                  <div 
+                    className="w-6 h-6 rounded-full mx-auto mb-1"
+                    style={{ backgroundColor: sleepColors[moodData.sleep_quality] }}
+                  />
+                  <div className="font-medium">수면의 질: {
+                    moodData.sleep_quality === 'good' ? '좋음' :
+                    moodData.sleep_quality === 'normal' ? '보통' : '나쁨'
+                  }</div>
                 </div>
               </div>
-            );
-          })()}
+
+              {/* 일기 표시 */}
+              {hasDiary && (
+                <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="text-lg">📖</span>
+                    <h4 className="font-medium text-amber-800">오늘의 일기</h4>
+                  </div>
+                  <p className="text-amber-700 leading-relaxed whitespace-pre-wrap">
+                    {moodData.diary_entry}
+                  </p>
+                </div>
+              )}
+
+              {/* 상세 보기 버튼 */}
+              <div className="mt-4">
+                <p className="text-blue-700 text-sm">
+                  💡 이 날의 모든 건강 기록(운동, 식사, 인바디 등)을 보려면 날짜를 클릭하세요.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-500">
+              <p>이 날의 컨디션 기록이 없습니다.</p>
+              <p className="text-sm mt-1">컨디션 기록 탭에서 기록을 추가해보세요.</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 커스텀 CSS */}
+      {/* 커스텀 스타일 */}
       <style jsx>{`
-        .calendar-container {
-          display: flex;
-          justify-content: center;
-        }
-        
-        .calendar-container :global(.react-calendar) {
-          width: 100%;
-          max-width: 600px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
+        :global(.react-calendar) {
+          border: none !important;
           font-family: inherit;
-          line-height: 1.125em;
+          width: 100% !important;
+          margin: 0 auto;
+          display: block;
         }
-        
-        .calendar-container :global(.react-calendar--doubleView) {
-          width: 700px;
+        :global(.react-calendar__viewContainer),
+        :global(.react-calendar__month-view) {
+          width: 100% !important;
         }
-        
-        .calendar-container :global(.react-calendar--doubleView .react-calendar__viewContainer) {
-          display: flex;
-          margin: -0.5em;
-        }
-        
-        .calendar-container :global(.react-calendar--doubleView .react-calendar__viewContainer > *) {
-          width: 50%;
-          margin: 0.5em;
-        }
-        
-        .calendar-container :global(.react-calendar *),
-        .calendar-container :global(.react-calendar *:before),
-        .calendar-container :global(.react-calendar *:after) {
-          -moz-box-sizing: border-box;
-          -webkit-box-sizing: border-box;
-          box-sizing: border-box;
-        }
-        
-        .calendar-container :global(.react-calendar button) {
-          margin: 0;
-          border: 0;
-          outline: none;
-        }
-        
-        .calendar-container :global(.react-calendar button:enabled:hover),
-        .calendar-container :global(.react-calendar button:enabled:focus) {
-          background-color: #f3f4f6;
-        }
-        
-        .calendar-container :global(.react-calendar__navigation) {
-          display: flex;
-          height: 44px;
-          margin-bottom: 1em;
-        }
-        
-        .calendar-container :global(.react-calendar__navigation button) {
-          min-width: 44px;
-          background: none;
-          font-size: 16px;
-          font-weight: bold;
-        }
-        
-        .calendar-container :global(.react-calendar__navigation button:enabled:hover),
-        .calendar-container :global(.react-calendar__navigation button:enabled:focus) {
-          background-color: #f3f4f6;
-        }
-        
-        .calendar-container :global(.react-calendar__month-view__weekdays) {
-          text-align: center;
-          text-transform: uppercase;
-          font-weight: bold;
-          font-size: 0.75em;
-        }
-        
-        .calendar-container :global(.react-calendar__month-view__weekdays__weekday) {
-          padding: 0.5em;
-        }
-        
-        .calendar-container :global(.react-calendar__month-view__weekNumbers .react-calendar__tile) {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 0.75em;
-          font-weight: bold;
-        }
-        
-        .calendar-container :global(.react-calendar__month-view__days__day--weekend) {
-          color: #d10000;
-        }
-        
-        .calendar-container :global(.react-calendar__month-view__days__day--neighboringMonth) {
-          color: #9ca3af;
-        }
-        
-        .calendar-container :global(.react-calendar__year-view .react-calendar__tile),
-        .calendar-container :global(.react-calendar__decade-view .react-calendar__tile),
-        .calendar-container :global(.react-calendar__century-view .react-calendar__tile) {
-          padding: 2em 0.5em;
-        }
-        
-        .calendar-container :global(.react-calendar__tile) {
-          max-width: 100%;
-          padding: 0.75em 0.5em;
-          background: none;
-          text-align: center;
-          line-height: 16px;
-          font-size: 0.833em;
-          height: 80px;
+        :global(.react-calendar__tile) {
+          position: relative;
+          height: ${compact ? '72px' : '92px'};
           display: flex;
           flex-direction: column;
+          justify-content: center;
           align-items: center;
-          justify-content: flex-start;
+          padding: 6px 4px;
+          border-radius: 10px;
         }
-        
-        .calendar-container :global(.react-calendar__tile:disabled) {
-          background-color: #f5f5f5;
+        :global(.react-calendar__tile:enabled:hover),
+        :global(.react-calendar__tile:enabled:focus) {
+          background-color: #f1f5f9;
         }
-        
-        .calendar-container :global(.react-calendar__tile:enabled:hover),
-        .calendar-container :global(.react-calendar__tile:enabled:focus) {
-          background-color: #e5e7eb;
+        :global(.react-calendar__tile--active) {
+          background-color: #0ea5e9 !important;
+          color: white !important;
         }
-        
-        .calendar-container :global(.react-calendar__tile--now) {
-          background: #dbeafe;
+        :global(.react-calendar__tile--now) {
+          background-color: #fef3c7;
         }
-        
-        .calendar-container :global(.react-calendar__tile--now:enabled:hover),
-        .calendar-container :global(.react-calendar__tile--now:enabled:focus) {
-          background: #bfdbfe;
+        :global(.rc-has-data) {
+          background-color: ${compact ? '#f8fafc' : '#f8fafc'};
+          box-shadow: inset 0 0 0 1px #e5e7eb;
         }
-        
-        .calendar-container :global(.react-calendar__tile--hasActive) {
-          background: #76a9fa;
+        :global(.rc-has-data:hover) {
+          background-color: #eef2ff;
         }
-        
-        .calendar-container :global(.react-calendar__tile--hasActive:enabled:hover),
-        .calendar-container :global(.react-calendar__tile--hasActive:enabled:focus) {
-          background: #a4b8fc;
+        :global(.rc-today) {
+          box-shadow: inset 0 0 0 2px #93c5fd;
         }
-        
-        .calendar-container :global(.react-calendar__tile--active) {
-          background: #3b82f6;
-          color: white;
+        :global(.react-calendar__month-view__weekdays) {
+          text-transform: none;
+          font-weight: bold;
+          font-size: ${compact ? '0.75rem' : '0.875rem'};
         }
-        
-        .calendar-container :global(.react-calendar__tile--active:enabled:hover),
-        .calendar-container :global(.react-calendar__tile--active:enabled:focus) {
-          background: #2563eb;
+        :global(.react-calendar__navigation) {
+          margin-bottom: 0.75rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
-        
-        .calendar-container :global(.react-calendar__tile.has-mood-data) {
-          background-color: #fef3cd;
+        :global(.react-calendar__navigation button) {
+          font-size: ${compact ? '0.875rem' : '1rem'};
+          color: #374151;
         }
-        
-        .calendar-container :global(.react-calendar__tile.has-mood-data:hover) {
-          background-color: #fde68a;
+        :global(.react-calendar__navigation button:enabled:hover),
+        :global(.react-calendar__navigation button:enabled:focus) {
+          background: #f3f4f6;
+          border-radius: 8px;
         }
       `}</style>
     </div>

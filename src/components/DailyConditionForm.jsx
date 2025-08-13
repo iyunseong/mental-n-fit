@@ -1,14 +1,26 @@
 // src/components/DailyConditionForm.jsx
 import React, { useState, useEffect } from 'react';
 import { supabase, auth } from '@/lib/supabase';
-import { Calendar, Heart, Battery, Moon, Save, RefreshCw } from 'lucide-react';
+import { Calendar, Heart, Battery, Moon, Save, RefreshCw, BookOpen, X } from 'lucide-react';
 
-const DailyConditionForm = ({ onDataSaved }) => {
-  // 메인 상태
-  const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
+const DailyConditionForm = ({ 
+  onDataSaved, 
+  logToEdit = null, 
+  selectedDate = null, 
+  onSave = null, 
+  onCancel = null 
+}) => {
+  // 편집 모드인지 확인
+  const isEditMode = logToEdit !== null;
+  
+  // 메인 상태 - selectedDate가 있으면 그것을 우선 사용
+  const initialDate = selectedDate || logToEdit?.log_date || new Date().toISOString().split('T')[0];
+  
+  const [logDate, setLogDate] = useState(initialDate);
   const [overallMood, setOverallMood] = useState('normal');
   const [fatigueLevel, setFatigueLevel] = useState('medium');
   const [sleepQuality, setSleepQuality] = useState('normal');
+  const [diaryEntry, setDiaryEntry] = useState('');
   
   // 폼 상태
   const [isLoading, setIsLoading] = useState(false);
@@ -56,24 +68,28 @@ const DailyConditionForm = ({ onDataSaved }) => {
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('log_date', date)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // PGRST116은 데이터가 없을 때 발생하는 에러
+      if (fetchError) {
         throw fetchError;
       }
 
-      if (data) {
-        setExistingRecord(data);
-        setOverallMood(data.overall_mood);
-        setFatigueLevel(data.fatigue_level);
-        setSleepQuality(data.sleep_quality);
+      const record = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+      if (record) {
+        setExistingRecord(record);
+        setOverallMood(record.overall_mood);
+        setFatigueLevel(record.fatigue_level);
+        setSleepQuality(record.sleep_quality);
+        setDiaryEntry(record.diary_entry || '');
       } else {
         setExistingRecord(null);
         // 기본값으로 리셋
         setOverallMood('normal');
         setFatigueLevel('medium');
         setSleepQuality('normal');
+        setDiaryEntry('');
       }
     } catch (err) {
       console.error('데이터 가져오기 오류:', err);
@@ -83,10 +99,34 @@ const DailyConditionForm = ({ onDataSaved }) => {
     }
   };
 
-  // 날짜 변경 시 해당 날짜의 데이터 가져오기
+  // 컴포넌트 마운트 시 데이터 로드
   useEffect(() => {
-    fetchExistingData(logDate);
-  }, [logDate]);
+    console.log('DailyConditionForm mounted:', { selectedDate, logToEdit, isEditMode, logDate });
+    
+    if (isEditMode && logToEdit) {
+      // 편집 모드: logToEdit 데이터로 초기화
+      setLogDate(logToEdit.log_date);
+      setOverallMood(logToEdit.overall_mood);
+      setFatigueLevel(logToEdit.fatigue_level);
+      setSleepQuality(logToEdit.sleep_quality);
+      setDiaryEntry(logToEdit.diary_entry || '');
+      setExistingRecord(logToEdit);
+    } else if (selectedDate) {
+      // selectedDate가 있으면 해당 날짜의 데이터 로드
+      setLogDate(selectedDate);
+      fetchExistingData(selectedDate);
+    } else if (logDate) {
+      // 일반 모드에서 logDate 변경 시 데이터 로드
+      fetchExistingData(logDate);
+    }
+  }, [selectedDate, logToEdit, isEditMode]);
+
+  // 날짜 변경 시 데이터 가져오기 (편집 모드가 아닐 때만)
+  useEffect(() => {
+    if (!isEditMode && !selectedDate && logDate) {
+      fetchExistingData(logDate);
+    }
+  }, [logDate, isEditMode, selectedDate]);
 
   // 폼 제출 처리
   const handleSubmit = async (e) => {
@@ -104,12 +144,15 @@ const DailyConditionForm = ({ onDataSaved }) => {
 
       const conditionData = {
         user_id: currentUser.id,
-        log_date: logDate,
+        log_date: logDate, // 현재 logDate 사용
         overall_mood: overallMood,
         fatigue_level: fatigueLevel,
         sleep_quality: sleepQuality,
+        diary_entry: diaryEntry,
         updated_at: new Date().toISOString()
       };
+
+      console.log('Saving condition data:', conditionData);
 
       // upsert 사용 (있으면 업데이트, 없으면 생성)
       const { data, error: upsertError } = await supabase
@@ -127,11 +170,18 @@ const DailyConditionForm = ({ onDataSaved }) => {
       setExistingRecord(data);
       setMessage(
         existingRecord 
-          ? '컨디션이 성공적으로 업데이트되었습니다!' 
-          : '컨디션이 성공적으로 저장되었습니다!'
+          ? '컨디션과 일기가 성공적으로 업데이트되었습니다!' 
+          : '컨디션과 일기가 성공적으로 저장되었습니다!'
       );
 
-      // 부모 컴포넌트에 데이터 저장 완료 알림
+      // 편집 모드에서는 onSave 콜백 호출
+      if (onSave) {
+        setTimeout(() => {
+          onSave();
+        }, 1000); // 1초 후에 편집 모드 종료
+      }
+
+      // 기존 onDataSaved 콜백도 호출 (대시보드 호환성)
       if (onDataSaved) {
         onDataSaved();
       }
@@ -144,12 +194,21 @@ const DailyConditionForm = ({ onDataSaved }) => {
     }
   };
 
+  // 편집 취소 처리
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel();
+    }
+  };
+
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">
-      <div className="flex items-center space-x-2 mb-6">
-        <Heart className="w-6 h-6 text-pink-500" />
-        <h2 className="text-2xl font-bold text-gray-800">데일리 컨디션</h2>
-      </div>
+    <div className={`${isEditMode ? '' : 'max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md'}`}>
+      {!isEditMode && (
+        <div className="flex items-center space-x-2 mb-6">
+          <Heart className="w-6 h-6 text-pink-500" />
+          <h2 className="text-2xl font-bold text-gray-800">데일리 컨디션 & 일기</h2>
+        </div>
+      )}
 
       {message && (
         <div className="p-3 mb-6 rounded-lg bg-green-100 text-green-700 border border-green-200">
@@ -164,7 +223,7 @@ const DailyConditionForm = ({ onDataSaved }) => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 날짜 선택 */}
+        {/* 날짜 선택 (편집 모드에서는 읽기 전용) */}
         <div>
           <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
             <Calendar className="w-4 h-4" />
@@ -173,11 +232,12 @@ const DailyConditionForm = ({ onDataSaved }) => {
           <input
             type="date"
             value={logDate}
-            onChange={(e) => setLogDate(e.target.value)}
+            onChange={(e) => !isEditMode && !selectedDate && setLogDate(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
-            disabled={isLoading}
+            disabled={isLoading || isEditMode || selectedDate}
+            readOnly={isEditMode || selectedDate}
           />
-          {existingRecord && (
+          {existingRecord && !isEditMode && (
             <p className="text-sm text-blue-600 mt-1">
               ℹ️ 이 날짜에 이미 기록이 있습니다. 수정 후 저장하면 업데이트됩니다.
             </p>
@@ -290,8 +350,38 @@ const DailyConditionForm = ({ onDataSaved }) => {
               </div>
             </div>
 
-            {/* 저장 버튼 */}
-            <div className="flex justify-end pt-4">
+            {/* 일기 */}
+            <div>
+              <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-3">
+                <BookOpen className="w-4 h-4" />
+                <span>오늘의 일기</span>
+              </label>
+              <textarea
+                value={diaryEntry}
+                onChange={(e) => setDiaryEntry(e.target.value)}
+                placeholder="오늘 하루는 어땠나요? 자유롭게 기록해보세요..."
+                className="w-full min-h-32 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 resize-vertical"
+                rows={4}
+              />
+              <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                <span>💡 기분, 생각, 특별한 일들을 자유롭게 써보세요</span>
+                <span>{diaryEntry.length} 글자</span>
+              </div>
+            </div>
+
+            {/* 저장/취소 버튼 */}
+            <div className={`flex ${isEditMode ? 'justify-between' : 'justify-end'} pt-4`}>
+              {isEditMode && onCancel && (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="flex items-center space-x-2 px-6 py-3 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  <span>취소</span>
+                </button>
+              )}
+              
               <button
                 type="submit"
                 disabled={isSaving}
@@ -302,8 +392,8 @@ const DailyConditionForm = ({ onDataSaved }) => {
                   {isSaving 
                     ? '저장 중...' 
                     : existingRecord 
-                      ? '컨디션 업데이트' 
-                      : '컨디션 저장'
+                      ? '컨디션 & 일기 업데이트' 
+                      : '컨디션 & 일기 저장'
                   }
                 </span>
               </button>

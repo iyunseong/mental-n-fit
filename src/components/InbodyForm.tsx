@@ -51,10 +51,10 @@ const InbodyForm: React.FC<InbodyFormProps> = ({ onDataSaved }) => {
         body_fat_percentage: formData.body_fat_percentage ? parseFloat(formData.body_fat_percentage) : null
       };
 
-      // Supabase에 InBody 데이터 저장
+      // Supabase에 InBody 데이터 저장 (중복 날짜는 업데이트)
       const { error } = await supabase
         .from('inbody_logs')
-        .insert([dataToInsert]);
+        .upsert(dataToInsert, { onConflict: 'user_id, log_date' });
 
       // Supabase 에러 확인
       if (error) {

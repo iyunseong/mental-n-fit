@@ -1,51 +1,14 @@
 // src/app/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { User } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/Button';
-import { ArrowRight, Brain, Heart, Target, Users, Clock, Activity, Zap, CheckCircle, Menu, X, User as UserIcon } from 'lucide-react';
-import { auth } from '@/lib/supabase';
-import { UserProfile } from '@/lib/authTypes';
+import { ArrowRight, Brain, Heart, Target, Users, Clock, Activity, Zap, CheckCircle } from 'lucide-react';
+import Container from '@/components/ui/Container';
 
 const LandingPage = () => {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-
-  // 사용자 인증 상태 확인
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const currentUser = await auth.getCurrentUser();
-        setUser(currentUser);
-        
-        // 사용자가 있으면 프로필 정보도 가져오기
-        if (currentUser) {
-          const userProfile = await auth.getUserProfile(currentUser.id);
-          setProfile(userProfile);
-        }
-      } catch (error) {
-        console.error('인증 상태 확인 실패:', error);
-      } finally {
-        setAuthLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await auth.signOut();
-      setUser(null);
-      setProfile(null);
-    } catch (error) {
-      console.error('로그아웃 실패:', error);
-    }
-  };
+  
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -56,173 +19,11 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="bg-white/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Brain className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                mental-n-fit
-              </h1>
-            </Link>
-            
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-8">
-              <button onClick={() => scrollToSection('features')} className="text-gray-600 hover:text-blue-600 transition-colors">
-                특징
-              </button>
-              <Link href="/survey" className="text-gray-600 hover:text-blue-600 transition-colors">
-                MetaType 16
-              </Link>
-              <button onClick={() => scrollToSection('how-it-works')} className="text-gray-600 hover:text-blue-600 transition-colors">
-                작동원리
-              </button>
-              
-              {/* 인증 관련 버튼들 */}
-              {authLoading ? (
-                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              ) : user ? (
-                <div className="flex items-center space-x-4">
-                  <Link href="/profile" className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors">
-                    <UserIcon className="w-5 h-5" />
-                  </Link>
-                  <Link href="/dashboard">
-                    <Button variant="outline" size="sm">
-                      대시보드
-                    </Button>
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="text-gray-600 hover:text-gray-900 text-sm"
-                  >
-                    로그아웃
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-4">
-                  <Link href="/login">
-                    <Button variant="outline" size="sm">
-                      로그인
-                    </Button>
-                  </Link>
-                  <Link href="/register">
-                    <Button variant="primary" size="sm">
-                      회원가입
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Mobile Menu Button */}
-            <button 
-              className="md:hidden p-2"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-6 h-6 text-gray-600" />
-              ) : (
-                <Menu className="w-6 h-6 text-gray-600" />
-              )}
-            </button>
-          </div>
-
-          {/* Mobile Navigation */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden py-4 space-y-4">
-              <button 
-                onClick={() => {
-                  scrollToSection('features');
-                  setIsMobileMenuOpen(false);
-                }} 
-                className="block w-full text-left px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                특징
-              </button>
-              <Link 
-                href="/survey"
-                className="block w-full text-left px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                MetaType 16
-              </Link>
-              <button 
-                onClick={() => {
-                  scrollToSection('how-it-works');
-                  setIsMobileMenuOpen(false);
-                }} 
-                className="block w-full text-left px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                작동원리
-              </button>
-              
-              {/* 모바일 인증 버튼들 */}
-              {authLoading ? (
-                <div className="flex justify-center px-4 py-2">
-                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              ) : user ? (
-                <div className="px-4 py-2 space-y-4">
-                  <Link 
-                    href="/profile"
-                    className="flex items-center justify-center space-x-2 text-sm text-gray-700 py-2"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <UserIcon className="w-4 h-4" />
-                    <span>프로필</span>
-                  </Link>
-                  <Link 
-                    href="/dashboard"
-                    className="block w-full"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <Button variant="outline" size="sm" className="w-full">
-                      대시보드
-                    </Button>
-                  </Link>
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="block w-full text-center py-2 text-gray-600 hover:text-gray-900"
-                  >
-                    로그아웃
-                  </button>
-                </div>
-              ) : (
-                <div className="px-4 py-2 space-y-4">
-                  <Link 
-                    href="/login"
-                    className="block w-full"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <Button variant="outline" size="sm" className="w-full">
-                      로그인
-                    </Button>
-                  </Link>
-                  <Link 
-                    href="/register"
-                    className="block w-full"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <Button variant="primary" size="sm" className="w-full">
-                      회원가입
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </nav>
+      {/* 전역 NavBar 사용 */}
 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <Container className="py-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
               <div className="space-y-4">
@@ -304,12 +105,12 @@ const LandingPage = () => {
               </div>
             </div>
           </div>
-        </div>
+        </Container>
       </section>
 
       {/* MetaType 4 Axes Section */}
       <section id="metatype" className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Container>
           <div className="text-center space-y-4 mb-16">
             <h2 className="text-4xl font-bold text-gray-900">
               4가지 핵심 축으로 분석하는 MetaType 16
@@ -368,12 +169,12 @@ const LandingPage = () => {
               </div>
             </div>
           </div>
-        </div>
+        </Container>
       </section>
 
       {/* Features Section */}
       <section id="features" className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Container>
           <div className="text-center space-y-4 mb-16">
             <h2 className="text-4xl font-bold text-gray-900">
               왜 mental-n-fit인가요?
@@ -417,12 +218,12 @@ const LandingPage = () => {
               </p>
             </div>
           </div>
-        </div>
+        </Container>
       </section>
 
       {/* How It Works Section */}
       <section id="how-it-works" className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Container>
           <div className="text-center space-y-4 mb-16">
             <h2 className="text-4xl font-bold text-gray-900">
               3단계로 시작하는 건강한 변화
@@ -472,12 +273,12 @@ const LandingPage = () => {
               </div>
             </div>
           </div>
-        </div>
+        </Container>
       </section>
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-br from-blue-600 to-purple-700">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
+        <Container className="max-w-4xl mx-auto text-center">
           <div className="space-y-8">
             <h2 className="text-4xl md:text-5xl font-bold text-white">
               당신만의 건강 여정을<br />
@@ -509,12 +310,12 @@ const LandingPage = () => {
               이미 <strong>1,000+</strong>명이 자신의 MetaType을 발견했습니다
             </p>
           </div>
-        </div>
+        </Container>
       </section>
 
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Container>
           <div className="grid md:grid-cols-4 gap-8">
             <div className="space-y-4">
               <div className="flex items-center space-x-2">
@@ -560,7 +361,7 @@ const LandingPage = () => {
           <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
             <p>&copy; 2025 mental-n-fit. All rights reserved.</p>
           </div>
-        </div>
+        </Container>
       </footer>
     </div>
   );
