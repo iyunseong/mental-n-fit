@@ -12,6 +12,7 @@ type BaseProps = {
   onPrimary: () => void
   variant?: Variant
   isLoading?: boolean
+  disabled?: boolean
 }
 
 type WithSecondary = { secondaryLabel: string; onSecondary: () => void }
@@ -39,7 +40,7 @@ const variantMap: Record<Variant, { icon: React.ReactNode; color: string; button
   },
 }
 
-export default function NudgeCard({ title, detail, primaryLabel, onPrimary, secondaryLabel, onSecondary, variant = 'info', isLoading = false }: NudgeCardProps) {
+export default function NudgeCard({ title, detail, primaryLabel, onPrimary, secondaryLabel, onSecondary, variant = 'info', isLoading = false, disabled = false }: NudgeCardProps) {
   const v = variantMap[variant]
   return (
     <Card role="region" aria-label={title} className="p-0">
@@ -50,11 +51,11 @@ export default function NudgeCard({ title, detail, primaryLabel, onPrimary, seco
             <h3 className={`text-sm font-medium ${v.color}`}>{title}</h3>
             {detail && <div className="text-sm text-gray-600 mt-1">{detail}</div>}
             <div className="mt-3 flex items-center gap-2">
-              <button type="button" onClick={onPrimary} disabled={isLoading} className={`px-3 py-1.5 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${v.button} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <button type="button" onClick={onPrimary} disabled={isLoading || disabled} className={`px-3 py-1.5 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${v.button} ${(isLoading || disabled) ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {primaryLabel}
               </button>
               {secondaryLabel && onSecondary && (
-                <button type="button" onClick={onSecondary} disabled={isLoading} className={`px-3 py-1.5 rounded-md text-sm border border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${v.subtle} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <button type="button" onClick={onSecondary} disabled={isLoading || disabled} className={`px-3 py-1.5 rounded-md text-sm border border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${v.subtle} ${(isLoading || disabled) ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   {secondaryLabel}
                 </button>
               )}
