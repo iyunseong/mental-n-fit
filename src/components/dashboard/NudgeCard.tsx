@@ -5,15 +5,18 @@ import { Info, CheckCircle2, AlertTriangle } from 'lucide-react'
 
 type Variant = 'info' | 'success' | 'warning'
 
-type NudgeCardProps = {
+type BaseProps = {
   title: string
   detail?: string
   primaryLabel: string
   onPrimary: () => void
-  secondaryLabel?: string
-  onSecondary?: () => void
   variant?: Variant
+  isLoading?: boolean
 }
+
+type WithSecondary = { secondaryLabel: string; onSecondary: () => void }
+type WithoutSecondary = { secondaryLabel?: undefined; onSecondary?: undefined }
+type NudgeCardProps = BaseProps & (WithSecondary | WithoutSecondary)
 
 const variantMap: Record<Variant, { icon: React.ReactNode; color: string; button: string; subtle: string }> = {
   info: {
@@ -36,20 +39,22 @@ const variantMap: Record<Variant, { icon: React.ReactNode; color: string; button
   },
 }
 
-export default function NudgeCard({ title, detail, primaryLabel, onPrimary, secondaryLabel, onSecondary, variant = 'info' }: NudgeCardProps) {
+export default function NudgeCard({ title, detail, primaryLabel, onPrimary, secondaryLabel, onSecondary, variant = 'info', isLoading = false }: NudgeCardProps) {
   const v = variantMap[variant]
   return (
-    <Card className="p-0">
+    <Card role="region" aria-label={title} className="p-0">
       <div className="p-5">
         <div className="flex items-start gap-3">
-          <div className="mt-0.5">{v.icon}</div>
+          <div className="mt-0.5" aria-hidden>{v.icon}</div>
           <div className="flex-1">
-            <div className={`text-sm font-medium ${v.color}`}>{title}</div>
+            <h3 className={`text-sm font-medium ${v.color}`}>{title}</h3>
             {detail && <div className="text-sm text-gray-600 mt-1">{detail}</div>}
             <div className="mt-3 flex items-center gap-2">
-              <button onClick={onPrimary} className={`px-3 py-1.5 rounded-md text-sm ${v.button}`}>{primaryLabel}</button>
+              <button type="button" onClick={onPrimary} disabled={isLoading} className={`px-3 py-1.5 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${v.button} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {primaryLabel}
+              </button>
               {secondaryLabel && onSecondary && (
-                <button onClick={onSecondary} className={`px-3 py-1.5 rounded-md text-sm border border-gray-200 ${v.subtle}`}>
+                <button type="button" onClick={onSecondary} disabled={isLoading} className={`px-3 py-1.5 rounded-md text-sm border border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${v.subtle} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   {secondaryLabel}
                 </button>
               )}

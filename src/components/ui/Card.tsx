@@ -1,6 +1,6 @@
 import React from 'react'
 
-type CardProps = {
+type CardProps = React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode
   title?: string
   className?: string
@@ -8,9 +8,9 @@ type CardProps = {
   headerRight?: React.ReactNode
 }
 
-export function Card({ children, title, description, className = '', headerRight }: CardProps) {
+export function Card({ children, title, description, className = '', headerRight, ...rest }: CardProps) {
   return (
-    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
+    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`} {...rest}>
       {(title || description || headerRight) && (
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
