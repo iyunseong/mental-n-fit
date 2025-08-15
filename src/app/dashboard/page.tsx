@@ -6,6 +6,7 @@ import { User } from '@supabase/supabase-js'
 import { auth } from '@/lib/supabase'
 import { UserProfile } from '@/lib/authTypes'
 import { Activity, Weight, Utensils, Heart, Calendar } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import InbodyForm from '@/components/InbodyForm'
 import WorkoutLogForm from '@/components/WorkoutLogForm'
 import InbodyTrendChart from '@/components/InbodyTrendChart'
@@ -17,7 +18,10 @@ import HealthCalendar from '@/components/HealthCalendar'
 import DailySummarySidebar from '@/components/DailySummarySidebar'
 import Container from '@/components/ui/Container'
 import { Card } from '@/components/ui/Card'
+import NudgeRow from '@/components/dashboard/NudgeRow'
+import QuickAddRail from '@/components/dashboard/QuickAddRail'
 
+const KPIHeader = dynamic(() => import('@/components/dashboard/KPIHeader'), { ssr: false })
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -168,6 +172,12 @@ export default function DashboardPage() {
                 안녕하세요, {profile?.nickname || user.email?.split('@')[0]}님! 오늘도 좋은 하루 되세요.
               </p>
             </div>
+            <div className="mb-6">
+              <KPIHeader />
+            </div>
+            <div className="mb-6">
+              <NudgeRow />
+            </div>
           </div>
           
           {/* 대시보드 컨텐츠 */}
@@ -265,6 +275,9 @@ export default function DashboardPage() {
                         <div className="flex-1 lg:w-[35%]">
                           {selectedCalendarDate ? (
                             <Card title="🗂️ 선택한 날짜 요약" description={selectedCalendarDate ?? undefined}>
+                              <div className="mb-4">
+                                <QuickAddRail dateISO={selectedCalendarDate ?? ''} />
+                              </div>
                                <DailySummarySidebar
                                 selectedDate={selectedCalendarDate ?? ''}
                                 onEditCondition={() => handleEditSection('condition')}
