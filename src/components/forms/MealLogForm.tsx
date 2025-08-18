@@ -1,5 +1,5 @@
 "use client"
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import MealLogFormInner from '@/components/MealLogForm'
 import { ProgressRing } from '@/lib/ui/rings'
 import { supabase } from '@/lib/supabase'
@@ -14,63 +14,88 @@ type Props = {
 }
 
 export default function MealLogForm({ onDataSaved, selectedDate = null, onSave, onCancel }: Props) {
+  type MealRow = { total_protein: number | null }
+  type MealPresetPayload = { name: string }
+  type MealPreset = { id: string; label: string; payload: MealPresetPayload }
+
   const [proteinPct, setProteinPct] = useState<number>(0)
-  const [recent, setRecent] = useState<Array<{ id: string; label: string; payload: any }>>([])
-  const [recommend, setRecommend] = useState<{ label: string; payload: any } | null>(null)
+  const [recent, setRecent] = useState<MealPreset[]>([])
+  const [recommend, setRecommend] = useState<{ label: string; payload: MealPresetPayload } | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const dateISO = selectedDate || new Date().toISOString().slice(0, 10)
+
+  // 사용자 1회 조회
+  useEffect(() => {
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUserId(user?.id ?? null)
+    })()
+  }, [])
 
   // KPI: 오늘 단백질 달성률
   useEffect(() => {
     ;(async () => {
       try {
-        const now = new Date()
-        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const base = selectedDate ? new Date(`${selectedDate}T00:00:00`) : new Date()
+        const start = new Date(base.getFullYear(), base.getMonth(), base.getDate())
+        const end = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1)
+        if (!userId) return
         const { data } = await supabase
           .from('meal_events')
           .select('total_protein')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .gte('ate_at', start.toISOString())
           .lt('ate_at', end.toISOString())
-        const totalProtein = (data ?? []).reduce((s: number, r: any) => s + (r.total_protein ?? 0), 0)
+        const rows = (data ?? []) as MealRow[]
+        const totalProtein = rows.reduce((s, r) => s + (r.total_protein ?? 0), 0)
         const goal = 130
         setProteinPct(goal ? Math.min(100, Math.round((totalProtein / goal) * 100)) : 0)
-      } catch {}
+      } catch (e) {
+        if (process.env.NODE_ENV !== 'production') console.warn('[MealLogForm] KPI fetch failed', e)
+      }
     })()
-  }, [selectedDate])
+  }, [selectedDate, userId])
 
   // 최근 프리셋 3개
   useEffect(() => {
     ;(async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!userId) return
         const { data } = await supabase
           .from('recent_presets')
           .select('id, payload')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('kind', 'meal')
           .order('updated_at', { ascending: false })
           .limit(3)
-        const mapped = (data ?? []).map((r: any) => ({ id: r.id, label: r.payload?.name ?? '프리셋', payload: r.payload }))
+        type RecentRow = { id: string; payload: { name?: string } | null }
+        const rows = (data ?? []) as RecentRow[]
+        const mapped: MealPreset[] = rows.map((r) => ({ id: r.id, label: r.payload?.name ?? '프리셋', payload: { name: r.payload?.name ?? '프리셋' } }))
         setRecent(mapped)
-      } catch {}
+      } catch (e) {
+        if (process.env.NODE_ENV !== 'production') console.warn('[MealLogForm] recent presets failed', e)
+      }
     })()
-  }, [])
+  }, [userId])
 
   // 메타타입 추천 1개 (B/P 우선 로직 샘플)
   useEffect(() => {
     ;(async () => {
       try {
-        const { data: prof } = await supabase.from('profiles').select('meta_type').limit(1).maybeSingle()
-        const mt: string | undefined = (prof as any)?.meta_type
+        if (!userId) return
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('meta_type')
+          .eq('user_id', userId)
+          .maybeSingle()
+        const mt: string | undefined = (prof as { meta_type?: string } | null)?.meta_type
         if (mt?.includes('B')) setRecommend({ label: '단백질/지방 위주 식사', payload: { name: '스테이크 200g' } })
         else if (mt?.includes('P')) setRecommend({ label: '통곡물/섬유질 식사', payload: { name: '퀴노아샐러드' } })
-      } catch {}
+      } catch (e) {
+        if (process.env.NODE_ENV !== 'production') console.warn('[MealLogForm] meta-type fetch failed', e)
+      }
     })()
-  }, [])
+  }, [userId])
 
   // 저장 이후 SWR 키들 갱신 및 토스트 메시지
   const handleSaved = async () => {
@@ -80,7 +105,7 @@ export default function MealLogForm({ onDataSaved, selectedDate = null, onSave, 
   }
 
   // 프리셋 적용: 기존 내부 폼에 직접 주입은 현재 구조상 미지원 → 안내
-  const applyPreset = (payload: any) => {
+  const applyPreset = (payload: MealPresetPayload) => {
     console.warn('프리셋 적용은 곧 지원됩니다:', payload)
   }
 
@@ -105,7 +130,7 @@ export default function MealLogForm({ onDataSaved, selectedDate = null, onSave, 
           )}
         </div>
       </div>
-      <MealLogFormInner onDataSaved={handleSaved} selectedDate={selectedDate} onSave={onSave} onCancel={onCancel} />
+      <MealLogFormInner onDataSaved={handleSaved} selectedDate={selectedDate ?? undefined} onSave={onSave} onCancel={onCancel} />
     </div>
   )
 }
