@@ -1,35 +1,66 @@
 // src/components/WorkoutLogForm.tsx
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, Trash2, Calendar, Dumbbell, X } from 'lucide-react';
 
 interface WorkoutLogFormProps {
   onDataSaved?: () => void;
-  selectedDate?: string;
+  selectedDate?: string | null;
   onSave?: () => void;
   onCancel?: () => void;
+  initialValue?: {
+    exercise?: string;
+    template?: string; // e.g., '5x3'
+    sets?: Array<{ reps?: number; weight_kg?: number }>;
+  } | null;
 }
 
 const WorkoutLogForm: React.FC<WorkoutLogFormProps> = ({ 
   onDataSaved, 
   selectedDate = null,
   onSave = null,
-  onCancel = null
+  onCancel = null,
+  initialValue = null,
 }) => {
   // 편집 모드인지 확인
   const isEditMode = selectedDate !== null;
   
   // 메인 상태
   const [logDate, setLogDate] = useState(selectedDate || new Date().toISOString().split('T')[0]);
-  const [exercises, setExercises] = useState([
-    {
-      id: 1,
-      name: '',
-      sets: [{ id: 1, reps: '', weight_kg: '' }]
-    }
-  ]);
+  const buildExercisesFromInitial = useMemo(() => {
+    return (iv: WorkoutLogFormProps['initialValue']) => {
+      if (iv?.sets && iv.sets.length > 0) {
+        return [
+          {
+            id: 1,
+            name: iv.exercise || '',
+            sets: iv.sets.map((s, idx) => ({ id: idx + 1, reps: String(s.reps ?? ''), weight_kg: String(s.weight_kg ?? '') })),
+          },
+        ];
+      }
+      if (iv?.template === '5x3') {
+        return [
+          {
+            id: 1,
+            name: iv.exercise || '스쿼트',
+            sets: Array.from({ length: 5 }).map((_, i) => ({ id: i + 1, reps: '3', weight_kg: '' })),
+          },
+        ];
+      }
+      return [
+        { id: 1, name: iv?.exercise || '', sets: [{ id: 1, reps: '', weight_kg: '' }] },
+      ];
+    };
+  }, []);
+
+  const [exercises, setExercises] = useState(buildExercisesFromInitial(initialValue));
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+
+  // initialValue 변경 시 폼 초기화
+  useEffect(() => {
+    setExercises(buildExercisesFromInitial(initialValue));
+  }, [initialValue, buildExercisesFromInitial]);
 
   // 운동 추가
   const addExercise = () => {
