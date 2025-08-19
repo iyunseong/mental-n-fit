@@ -60,17 +60,39 @@ export default function KPIHeaderClient() {
             .lte('log_date', todayLocalStr),
         ])
 
-        type MealRow = { total_calories: number | null }
+        type MealRow = { id?: string; total_calories: number | null }
         type SleepRow = { sleep_hours: number | null }
 
         const meals = (mealsRes.data ?? []) as MealRow[]
         const totalCalories = meals.reduce((s, m) => s + (m.total_calories ?? 0), 0)
 
+        // 단백질 합계: 오늘의 meal_events → meal_items.protein 합계
+        let totalProtein = 0
+        try {
+          // 먼저 오늘 meal_events의 id를 가져온다 (id가 select에 포함되어 있지 않을 수 있으므로 보조 쿼리 수행)
+          const mealsIdRes = await supabase
+            .from('meal_events')
+            .select('id')
+            .eq('user_id', user.id)
+            .gte('ate_at', startISO)
+            .lt('ate_at', endISO)
+          const mealIds = (mealsIdRes.data ?? []).map((m: { id: string }) => m.id)
+          if (mealIds.length > 0) {
+            const itemsRes = await supabase
+              .from('meal_items')
+              .select('protein')
+              .in('meal_event_id', mealIds)
+            const itemRows = (itemsRes.data ?? []) as Array<{ protein: number | null }>
+            totalProtein = itemRows.reduce((s, r) => s + (r.protein ?? 0), 0)
+          }
+        } catch (e) {
+          if (process.env.NODE_ENV !== 'production') console.error('[KPIHeaderClient] protein sum failed', e)
+        }
+
         const proteinGoal = 130
         const kcalLow = 2000
         const kcalHigh = 2300
-        // total_protein 컬럼이 없을 수 있어 단백질 퍼센트는 일단 0으로 표시
-        const proteinPct = 0
+        const proteinPct = proteinGoal ? Math.min(100, Math.round((totalProtein / proteinGoal) * 100)) : 0
         const kcalCenter = (kcalLow + kcalHigh) / 2
         const kcalPct = kcalCenter ? Math.min(100, Math.round((totalCalories / kcalCenter) * 100)) : 0
 
