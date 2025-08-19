@@ -1,7 +1,11 @@
 'use client'
 import React from 'react'
+import type { ComponentProps } from 'react'
 import Legacy from '@/components/forms/WorkoutLogForm'
-export default function WorkoutLogForm(props: any){
+
+type Props = ComponentProps<typeof Legacy>
+
+export default function WorkoutLogForm(props: Props){
   return <Legacy {...props} />
 }
 

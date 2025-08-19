@@ -1,7 +1,11 @@
 'use client'
 import React from 'react'
+import type { ComponentProps } from 'react'
 import Legacy from '@/components/forms/InbodyForm'
-export default function InbodyForm(props: any){
+
+type Props = ComponentProps<typeof Legacy>
+
+export default function InbodyForm(props: Props){
   return <Legacy {...props} />
 }
 
