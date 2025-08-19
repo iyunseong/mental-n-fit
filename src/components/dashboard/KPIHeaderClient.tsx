@@ -42,7 +42,7 @@ export default function KPIHeaderClient() {
         const [mealsRes, workoutsRes, sleepRes] = await Promise.all([
           supabase
             .from('meal_events')
-            .select('total_calories, total_protein')
+            .select('total_calories')
             .eq('user_id', user.id)
             .gte('ate_at', startISO)
             .lt('ate_at', endISO),
@@ -60,26 +60,29 @@ export default function KPIHeaderClient() {
             .lte('log_date', todayLocalStr),
         ])
 
-        type MealRow = { total_calories: number | null; total_protein: number | null }
+        type MealRow = { total_calories: number | null }
         type SleepRow = { sleep_hours: number | null }
 
         const meals = (mealsRes.data ?? []) as MealRow[]
         const totalCalories = meals.reduce((s, m) => s + (m.total_calories ?? 0), 0)
-        const totalProtein = meals.reduce((s, m) => s + (m.total_protein ?? 0), 0)
 
         const proteinGoal = 130
         const kcalLow = 2000
         const kcalHigh = 2300
-        const proteinPct = proteinGoal ? Math.min(100, Math.round((totalProtein / proteinGoal) * 100)) : 0
+        // total_protein 컬럼이 없을 수 있어 단백질 퍼센트는 일단 0으로 표시
+        const proteinPct = 0
         const kcalCenter = (kcalLow + kcalHigh) / 2
         const kcalPct = kcalCenter ? Math.min(100, Math.round((totalCalories / kcalCenter) * 100)) : 0
 
         const workoutSessions = workoutsRes.count ?? 0
         const workoutGoal = 4
 
-        const sleep = (sleepRes.data ?? []) as SleepRow[]
-        const vals = sleep.map((s) => s.sleep_hours).filter((v): v is number => typeof v === 'number')
-        const sleepHoursAvg = vals.length ? Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : 0
+        let sleepHoursAvg = 0
+        if (!sleepRes.error) {
+          const sleep = (sleepRes.data ?? []) as SleepRow[]
+          const vals = sleep.map((s) => s.sleep_hours).filter((v): v is number => typeof v === 'number')
+          sleepHoursAvg = vals.length ? Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : 0
+        }
 
         setKpi({ proteinPct, kcalPct, workoutSessions, workoutGoal, sleepHoursAvg })
       } catch (e) {
