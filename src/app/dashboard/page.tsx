@@ -6,7 +6,7 @@ import { User } from '@supabase/supabase-js'
 import { auth } from '@/lib/supabase'
 import { UserProfile } from '@/lib/authTypes'
 import { Activity, Weight, Utensils, Heart, Calendar } from 'lucide-react'
-import dynamic from 'next/dynamic'
+import KPIHeaderClient from '@/components/dashboard/KPIHeaderClient'
 import InbodyForm from '@/components/dashboard/InbodyForm'
 import WorkoutLogForm from '@/components/dashboard/WorkoutLogForm'
 import InbodyTrendChart from '@/components/InbodyTrendChart'
@@ -21,7 +21,6 @@ import { Card } from '@/components/ui/Card'
 import NudgeRow from '@/components/dashboard/NudgeRow'
 import QuickAddRail from '@/components/dashboard/QuickAddRail'
 
-const KPIHeader = dynamic(() => import('@/components/dashboard/KPIHeader'), { ssr: false })
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
@@ -173,7 +172,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="mb-6">
-              <KPIHeader />
+              <KPIHeaderClient />
             </div>
             <div className="mb-6">
               <NudgeRow />
