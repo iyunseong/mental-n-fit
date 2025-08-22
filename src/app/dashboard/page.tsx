@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import { auth } from '@/lib/supabase'
@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   // 전역 NavBar 사용으로 내부 모바일 메뉴 상태 제거
   const [activeTab, setActiveTab] = useState<'calendar' | 'inbody' | 'workout' | 'meal' | 'condition'>('calendar')
+  const [hydrated, setHydrated] = useState(false)
   const [chartRefreshTrigger, setChartRefreshTrigger] = useState(0)
   const [workoutChartRefreshTrigger, setWorkoutChartRefreshTrigger] = useState(0)
   const [mealChartRefreshTrigger, setMealChartRefreshTrigger] = useState(0)
@@ -45,8 +46,20 @@ export default function DashboardPage() {
   // 사이드바 데이터 새로고침 트리거
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
 
+  // 초기 탭 동기화: 레이아웃 효과로 먼저 반영
+  useLayoutEffect(() => {
+    try {
+      const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null
+      if (q === 'inbody' || q === 'workout' || q === 'meal' || q === 'condition' || q === 'calendar') {
+        setActiveTab(q)
+      }
+    } catch {}
+    setHydrated(true)
+  }, [])
+
   // 컴포넌트 마운트 시 사용자 정보 가져오기
   useEffect(() => {
+
     const getUser = async () => {
       try {
         const currentUser = await auth.getCurrentUser()
@@ -195,9 +208,10 @@ export default function DashboardPage() {
 
                 {/* 탭 네비게이션 */}
                 <div className="mb-6">
-                  <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg overflow-x-auto">
+                  <div data-testid="tabbar" data-active={hydrated ? activeTab : ''} className="flex space-x-1 bg-gray-100 p-1 rounded-lg overflow-x-auto">
                     <button
-                      onClick={() => setActiveTab('calendar')}
+                      data-testid="tab-calendar"
+                      onClick={() => { setActiveTab('calendar'); history.replaceState(null, '', '/dashboard?tab=calendar') }}
                       className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         activeTab === 'calendar'
                           ? 'bg-white text-blue-600 shadow-sm'
@@ -208,7 +222,8 @@ export default function DashboardPage() {
                       <span>건강 캘린더</span>
                     </button>
                     <button
-                      onClick={() => setActiveTab('inbody')}
+                      data-testid="tab-inbody"
+                      onClick={() => { setActiveTab('inbody'); history.replaceState(null, '', '/dashboard?tab=inbody') }}
                       className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         activeTab === 'inbody'
                           ? 'bg-white text-blue-600 shadow-sm'
@@ -219,7 +234,8 @@ export default function DashboardPage() {
                       <span>InBody 기록</span>
                     </button>
                     <button
-                      onClick={() => setActiveTab('workout')}
+                      data-testid="tab-workout"
+                      onClick={() => { setActiveTab('workout'); history.replaceState(null, '', '/dashboard?tab=workout') }}
                       className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         activeTab === 'workout'
                           ? 'bg-white text-blue-600 shadow-sm'
@@ -230,7 +246,8 @@ export default function DashboardPage() {
                       <span>운동 기록</span>
                     </button>
                     <button
-                      onClick={() => setActiveTab('meal')}
+                      data-testid="tab-meal"
+                      onClick={() => { setActiveTab('meal'); history.replaceState(null, '', '/dashboard?tab=meal') }}
                       className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         activeTab === 'meal'
                           ? 'bg-white text-blue-600 shadow-sm'
@@ -241,7 +258,8 @@ export default function DashboardPage() {
                       <span>식단 기록</span>
                     </button>
                     <button
-                      onClick={() => setActiveTab('condition')}
+                      data-testid="tab-condition"
+                      onClick={() => { setActiveTab('condition'); history.replaceState(null, '', '/dashboard?tab=condition') }}
                       className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         activeTab === 'condition'
                           ? 'bg-white text-blue-600 shadow-sm'
@@ -349,7 +367,7 @@ export default function DashboardPage() {
                   {activeTab === 'workout' && (
                     <div className="space-y-8">
                       {/* 운동 기록 입력 섹션 */}
-                      <Card title="운동 기록 입력" description="오늘 한 운동들의 세트, 횟수 등을 기록하세요.">
+                      <Card data-testid="panel-workout" title="운동 기록 입력" description="오늘 한 운동들의 세트, 횟수 등을 기록하세요.">
                         <WorkoutLogForm onDataSaved={handleWorkoutDataSaved} />
                       </Card>
 
@@ -363,7 +381,7 @@ export default function DashboardPage() {
                   {activeTab === 'meal' && (
                     <div className="space-y-8">
                       {/* 식단 기록 입력 섹션 */}
-                      <Card title="식단 기록 입력" description="일일 식사를 기록하고 칼로리를 추적하세요.">
+                      <Card data-testid="panel-meal" title="식단 기록 입력" description="일일 식사를 기록하고 칼로리를 추적하세요.">
                         <MealLogForm onDataSaved={handleMealDataSaved} />
                       </Card>
 

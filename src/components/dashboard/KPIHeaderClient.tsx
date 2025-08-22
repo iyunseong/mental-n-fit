@@ -26,7 +26,45 @@ export default function KPIHeaderClient() {
     })()
   }, [])
 
-  if (!kpi) return null
+  if (!kpi) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+          <ProgressRing value={0} label="단백질" />
+          <div>
+            <div className="text-sm text-gray-500">오늘 단백질</div>
+            <div className="text-lg font-semibold text-gray-400">…</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+          <ProgressRing value={0} label="칼로리" />
+          <div>
+            <div className="text-sm text-gray-500">권장 범위 대비</div>
+            <div className="text-lg font-semibold text-gray-400">…</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-400 text-lg font-semibold">…</div>
+          <div>
+            <div className="text-sm text-gray-500">주간 운동 세션</div>
+            <div className="text-lg font-semibold text-gray-400">…</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-400 text-lg font-semibold">…</div>
+          <div>
+            <div className="text-sm text-gray-500">최근 7일 평균 수면</div>
+            <div className="text-lg font-semibold text-gray-400">…</div>
+          </div>
+        </div>
+        <div className="col-span-full">
+          <div className="w-full h-10 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500">
+            ConfidenceMeter 자리 (추가 예정)
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

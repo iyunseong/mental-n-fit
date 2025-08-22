@@ -68,6 +68,9 @@ export const auth = {
 
   // 현재 사용자 정보 가져오기
   getCurrentUser: async () => {
+    if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') {
+      return { id: 'e2e-user', email: 'e2e@example.com' } as unknown as import('@supabase/supabase-js').User
+    }
     const { data: { user } } = await supabase.auth.getUser()
     return user
   },
@@ -80,6 +83,14 @@ export const auth = {
 
   // 사용자 프로필 가져오기
   getUserProfile: async (userId: string): Promise<UserProfile | null> => {
+    if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') {
+      return {
+        user_id: userId,
+        nickname: 'E2E Tester',
+        email: 'e2e@example.com',
+        created_at: new Date().toISOString(),
+      } as unknown as UserProfile
+    }
     const { data, error } = await supabase
       .from('profiles')
       .select('*')

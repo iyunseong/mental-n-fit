@@ -422,6 +422,7 @@ const DailySummarySidebar = ({
         
         {/* 컨디션 요약 */}
         <button
+          data-testid="summary-condition"
           onClick={() => handleSectionClick('condition')}
           className="w-full p-3 text-left bg-pink-50 hover:bg-pink-100 rounded-lg border border-pink-200 transition-colors"
         >
@@ -450,6 +451,7 @@ const DailySummarySidebar = ({
 
         {/* InBody 요약 */}
         <button
+          data-testid="summary-inbody"
           onClick={() => handleSectionClick('inbody')}
           className="w-full p-3 text-left bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
         >
@@ -475,6 +477,7 @@ const DailySummarySidebar = ({
 
         {/* 운동 요약 */}
         <button
+          data-testid="summary-workout"
           onClick={() => handleSectionClick('workout')}
           className="w-full p-3 text-left bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors"
         >
@@ -500,6 +503,7 @@ const DailySummarySidebar = ({
 
         {/* 식사 요약 */}
         <button
+          data-testid="summary-meal"
           onClick={() => handleSectionClick('meal')}
           className="w-full p-3 text-left bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 transition-colors"
         >

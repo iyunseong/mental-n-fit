@@ -4,6 +4,10 @@ import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
+  // E2E 테스트용 인증 우회
+  if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') {
+    return res
+  }
   
   // Supabase 클라이언트 생성 (미들웨어용)
   const supabase = createMiddlewareClient({ req, res })
