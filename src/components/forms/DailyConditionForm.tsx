@@ -1,6 +1,6 @@
 "use client"
 import React, { useEffect, useState } from 'react'
-import DailyConditionFormInner from '@/components/DailyConditionForm'
+import DailyConditionFormInner from '../internal/DailyConditionFormInner'
 import { ProgressRing } from '@/lib/ui/rings'
 import { supabase } from '@/lib/supabase'
 import { safeMutate } from '@/lib/swrSafe'
@@ -127,7 +127,7 @@ export default function DailyConditionForm({ onDataSaved, selectedDate = null, o
           )}
         </div>
       </div>
-      <DailyConditionFormInner onDataSaved={handleSaved} selectedDate={selectedDate ?? undefined} onSave={onSave} onCancel={onCancel} />
+      <DailyConditionFormInner onDataSaved={handleSaved} onSave={onSave} onCancel={onCancel} />
     </div>
   )
 }

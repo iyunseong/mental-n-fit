@@ -1,6 +1,7 @@
+// src/components/forms/InbodyForm.tsx
 "use client"
 import React, { useEffect, useState } from 'react'
-import InbodyFormInner from '@/components/InbodyForm'
+import InbodyFormInner from '../internal/InbodyFormInner'
 import { ProgressRing } from '@/lib/ui/rings'
 import { supabase } from '@/lib/supabase'
 import { safeMutate } from '@/lib/swrSafe'

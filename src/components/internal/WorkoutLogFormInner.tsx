@@ -132,7 +132,8 @@ const WorkoutLogFormInner = ({ onDataSaved, selectedDate = null as unknown as st
     }
   }
 
-  const handleCancel = () => { if (onCancel) onCancel() }
+  // 내부에서 사용하지 않으므로 제거해 린트 통과
+  // const handleCancel = () => { if (onCancel) onCancel() }
 
   return (
     <div className={`${isEditMode ? '' : 'max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md'}`}>

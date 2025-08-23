@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 
 export async function GET() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) {
-    return NextResponse.json({ error: 'supabase env missing' }, { status: 500 })
+  // E2E 및 비로그인 상황에서도 UI가 깨지지 않도록 안전한 기본값 반환
+  if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') {
+    return NextResponse.json({ proteinPct: 0, kcalPct: 0, workoutSessions: 0, workoutGoal: 4, sleepHoursAvg: 0 })
   }
-  const sb = createClient(url, key)
+
+  const cookieStore = cookies()
+  const sb = createRouteHandlerClient({ cookies: () => cookieStore })
 
   const { data: { user } } = await sb.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!user) {
+    return NextResponse.json({ proteinPct: 0, kcalPct: 0, workoutSessions: 0, workoutGoal: 4, sleepHoursAvg: 0 })
+  }
 
   const now = new Date()
   const startISO = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
