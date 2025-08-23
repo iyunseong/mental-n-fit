@@ -3,9 +3,11 @@ import { test, expect } from '@playwright/test'
 test.use({ baseURL: 'http://localhost:3000' })
 
 test.describe('Dashboard smoke', () => {
-  test.beforeEach(async () => {
+  test.beforeEach(async ({ context }) => {
     // E2E 모드
     process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH = '1'
+    // 헤더 기반 우회도 추가 (미들웨어가 서버 런타임에서 env를 못 읽는 경우 대비)
+    await context.setExtraHTTPHeaders({ 'x-e2e': '1' })
   })
 
   test('loads dashboard and renders KPI, calendar, sidebar', async ({ page }) => {

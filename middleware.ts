@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server'
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   // E2E 테스트용 인증 우회
-  if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') {
+  if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1' || req.headers.get('x-e2e') === '1') {
     return res
   }
   

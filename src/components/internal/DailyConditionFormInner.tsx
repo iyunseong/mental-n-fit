@@ -1,6 +1,6 @@
 "use client"
 import React from 'react'
-import Legacy from '../DailyConditionForm.jsx'
+import Legacy from '../DailyConditionForm'
 type LegacyProps = {
   onDataSaved?: () => void
   selectedDate?: string | null
