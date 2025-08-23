@@ -1,4 +1,6 @@
 'use client';
+export const dynamic = 'force-dynamic';
+import { Suspense } from 'react';
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -19,7 +21,7 @@ import {
   Star
 } from 'lucide-react';
 
-const MetaTypeResultPage = () => {
+const MetaTypeResultPageInner = () => {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
   const [metaType, setMetaType] = useState<string | null>(null);
@@ -385,4 +387,19 @@ const MetaTypeResultPage = () => {
   );
 };
 
-export default MetaTypeResultPage; 
+export default function MetaTypeResultPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-lg text-gray-600">결과를 불러오는 중...</p>
+          </div>
+        </div>
+      }
+    >
+      <MetaTypeResultPageInner />
+    </Suspense>
+  );
+}

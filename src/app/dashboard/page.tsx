@@ -10,13 +10,13 @@ import { Activity, Weight, Utensils, Heart, Calendar } from 'lucide-react'
 import KPIHeaderClient from '@/components/dashboard/KPIHeaderClient'
 import InbodyForm from '@/components/forms/InbodyForm'
 import WorkoutLogForm from '@/components/forms/WorkoutLogForm'
-import InbodyTrendChart from '@/components/InbodyTrendChart'
-import VolumeTrendChart from '@/components/VolumeTrendChart'
+import InbodyTrendChart from '@/components/dashboard/InbodyTrendChart'
+import VolumeTrendChart from '@/components/dashboard/VolumeTrendChart'
 import MealLogForm from '@/components/forms/MealLogForm'
-import MealTrendChart from '@/components/MealTrendChart'
+import MealTrendChart from '@/components/dashboard/MealTrendChart'
 import DailyConditionForm from '@/components/forms/DailyConditionForm'
-import HealthCalendar from '@/components/HealthCalendar'
-import DailySummarySidebar from '@/components/DailySummarySidebar'
+import HealthCalendar from '@/components/dashboard/HealthCalendar'
+import DailySummarySidebar from '@/components/dashboard/DailySummarySidebar'
 import Container from '@/components/ui/Container'
 import { Card } from '@/components/ui/Card'
 import NudgeRow from '@/components/dashboard/NudgeRow'
@@ -192,7 +192,7 @@ export default function DashboardPage() {
               <NudgeRow />
             </div>
           </div>
-          
+
           {/* 대시보드 컨텐츠 */}
           <div className="px-4 py-6 sm:px-0">
             <div>
@@ -362,7 +362,7 @@ export default function DashboardPage() {
                       <Card title="📈 InBody 추세 분석" description="골격근량과 체지방률의 변화 추세를 확인해보세요.">
                         <InbodyTrendChart refreshTrigger={chartRefreshTrigger} />
                       </Card>
-                    </div>
+                      </div>
                   )}
                   
                   {activeTab === 'workout' && (
@@ -376,7 +376,7 @@ export default function DashboardPage() {
                       <Card title="📊 운동 볼륨 추세 분석" description="일별 총 운동 볼륨(무게×반복수)의 변화 추세를 확인해보세요.">
                         <VolumeTrendChart refreshTrigger={workoutChartRefreshTrigger} />
                       </Card>
-                    </div>
+                      </div>
                   )}
 
                   {activeTab === 'meal' && (
@@ -390,7 +390,7 @@ export default function DashboardPage() {
                       <Card title="📈 일일 칼로리 추세 분석" description="일별 총 섭취 칼로리의 변화 추세를 확인해보세요.">
                         <MealTrendChart refreshTrigger={mealChartRefreshTrigger} />
                       </Card>
-                    </div>
+                      </div>
                   )}
 
                   {activeTab === 'condition' && (

@@ -1,6 +1,6 @@
-// src/components/DailyLogView.jsx
-import React, { useState, useEffect } from 'react';
-import { supabase, auth } from '@/lib/supabase';
+"use client"
+import React, { useState, useEffect, useCallback } from 'react'
+import { supabase, auth } from '@/lib/supabase'
 import { 
   Heart, 
   Weight, 
@@ -14,198 +14,168 @@ import {
   Battery,
   Moon,
   X
-} from 'lucide-react';
-import DailyConditionForm from './DailyConditionForm';
-import WorkoutLogForm from './WorkoutLogForm';
-import MealLogForm from './MealLogForm';
+} from 'lucide-react'
+import DailyConditionForm from '@/components/forms/DailyConditionForm'
+import WorkoutLogForm from '@/components/forms/WorkoutLogForm'
+import MealLogForm from '@/components/forms/MealLogForm'
 
-const DailyLogView = ({ selectedDate }) => {
-  // 데이터 상태
-  const [conditionData, setConditionData] = useState(null);
-  const [inbodyData, setInbodyData] = useState(null);
-  const [workoutData, setWorkoutData] = useState(null);
-  const [mealData, setMealData] = useState(null);
-  
-  // UI 상태
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  
-  // 편집 모드 상태
-  const [isEditingCondition, setIsEditingCondition] = useState(false);
-  const [isEditingWorkout, setIsEditingWorkout] = useState(false);
-  const [isEditingMeal, setIsEditingMeal] = useState(false);
+// Typed models
+type DailyCondition = {
+  overall_mood: 'great' | 'good' | 'normal' | 'bad' | 'awful'
+  fatigue_level: 'low' | 'medium' | 'high'
+  sleep_quality: 'good' | 'normal' | 'bad'
+  diary_entry?: string | null
+} | null
 
-  // 기분 이모지 매핑
-  const moodEmojis = {
+type InbodyLog = {
+  weight_kg?: number
+  skeletal_muscle_mass_kg?: number
+  body_fat_percentage?: number
+  bmi?: number
+  created_at?: string
+} | null
+
+type WorkoutSet = { reps?: number; weight_kg?: number }
+
+type WorkoutLog = {
+  exercise_name?: string
+  created_at?: string
+  workout_data?: WorkoutSet[]
+  exercises?: { sets?: WorkoutSet[] }[]
+}
+
+type MealItem = {
+  food_db?: { name: string } | null
+  custom_food_name?: string
+  quantity?: number
+  calories?: number
+}
+
+type MealEvent = {
+  ate_at: string
+  total_calories?: number
+  meal_items?: MealItem[]
+  hunger_level?: string | null
+  mood_before?: string | null
+}
+
+const DailyLogView: React.FC<DailyLogViewProps> = ({ selectedDate }) => {
+  const [conditionData, setConditionData] = useState<DailyCondition>(null)
+  const [inbodyData, setInbodyData] = useState<InbodyLog>(null)
+  const [workoutData, setWorkoutData] = useState<WorkoutLog[] | null>(null)
+  const [mealData, setMealData] = useState<MealEvent[] | null>(null)
+  
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  
+  const [isEditingCondition, setIsEditingCondition] = useState(false)
+  const [isEditingWorkout, setIsEditingWorkout] = useState(false)
+  const [isEditingMeal, setIsEditingMeal] = useState(false)
+
+  const moodEmojis: Record<string, string> = {
     great: '🤩',
     good: '😊',
     normal: '😐',
     bad: '😔',
     awful: '😵'
-  };
+  }
 
-  // 컨디션 데이터 가져오기
-  const fetchConditionData = async (date, userId) => {
+  const fetchConditionData = async (date: string, userId: string): Promise<DailyCondition> => {
     const { data, error } = await supabase
       .from('daily_conditions')
       .select('*')
       .eq('user_id', userId)
       .eq('log_date', date)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') {
-      throw error;
+      .single()
+    if (error && (error as { code?: string }).code !== 'PGRST116') {
+      throw error
     }
-    
-    return data;
-  };
+    return data as DailyCondition
+  }
 
-  // 인바디 데이터 가져오기
-  const fetchInbodyData = async (date, userId) => {
+  const fetchInbodyData = async (date: string, userId: string): Promise<InbodyLog> => {
     const { data, error } = await supabase
       .from('inbody_logs')
       .select('*')
       .eq('user_id', userId)
       .eq('log_date', date)
       .order('created_at', { ascending: false })
-      .limit(1);
-    
-    if (error) {
-      throw error;
-    }
-    
-    return data.length > 0 ? data[0] : null;
-  };
+      .limit(1)
+    if (error) throw error
+    return (data && (data as InbodyLog[])[0]) || null
+  }
 
-  // 운동 데이터 가져오기
-  const fetchWorkoutData = async (date, userId) => {
+  const fetchWorkoutData = async (date: string, userId: string): Promise<WorkoutLog[]> => {
     const { data, error } = await supabase
       .from('workout_logs')
       .select('*')
       .eq('user_id', userId)
       .eq('log_date', date)
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      throw error;
-    }
-    
-    return data;
-  };
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data as WorkoutLog[]) || []
+  }
 
-  // 식사 데이터 가져오기
-  const fetchMealData = async (date, userId) => {
-    // ate_at 컬럼을 사용하여 해당 날짜의 식사들을 가져오기
-    const startDate = `${date}T00:00:00.000Z`;
-    const endDate = `${date}T23:59:59.999Z`;
-    
+  const fetchMealData = async (date: string, userId: string): Promise<MealEvent[]> => {
+    const startDate = `${date}T00:00:00.000Z`
+    const endDate = `${date}T23:59:59.999Z`
     const { data: mealEvents, error: mealError } = await supabase
       .from('meal_events')
-      .select(`
-        *,
-        meal_items (
-          *,
-          food_db (name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g)
-        )
-      `)
+      .select(`*, meal_items (*, food_db (name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g))`)
       .eq('user_id', userId)
       .gte('ate_at', startDate)
       .lte('ate_at', endDate)
-      .order('ate_at', { ascending: true });
-    
-    if (mealError) {
-      throw mealError;
-    }
-    
-    return mealEvents;
-  };
+      .order('ate_at', { ascending: true })
+    if (mealError) throw mealError
+    return (mealEvents as MealEvent[]) || []
+  }
 
-  // 모든 데이터 가져오기
-  const fetchAllData = async (date) => {
+  const fetchAllData = useCallback(async (date: string) => {
     try {
-      setIsLoading(true);
-      setError('');
-
-      const currentUser = await auth.getCurrentUser();
-      if (!currentUser) {
-        throw new Error('로그인이 필요합니다.');
-      }
-
-      // 모든 데이터를 병렬로 가져오기
+      setIsLoading(true)
+      setError('')
+      const currentUser = await auth.getCurrentUser()
+      if (!currentUser) throw new Error('로그인이 필요합니다.')
       const [condition, inbody, workout, meal] = await Promise.all([
         fetchConditionData(date, currentUser.id),
         fetchInbodyData(date, currentUser.id),
         fetchWorkoutData(date, currentUser.id),
         fetchMealData(date, currentUser.id)
-      ]);
-
-      setConditionData(condition);
-      setInbodyData(inbody);
-      setWorkoutData(workout);
-      setMealData(meal);
-
+      ])
+      setConditionData(condition)
+      setInbodyData(inbody)
+      setWorkoutData(workout)
+      setMealData(meal)
     } catch (err) {
-      console.error('데이터 가져오기 오류:', err);
-      setError(err.message || '데이터를 가져오는 중 오류가 발생했습니다.');
+      const message = (err as { message?: string })?.message || '데이터를 가져오는 중 오류가 발생했습니다.'
+      console.error('데이터 가져오기 오류:', err)
+      setError(message)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }, [])
 
-  // selectedDate가 변경될 때마다 데이터 가져오기
   useEffect(() => {
     if (selectedDate) {
-      fetchAllData(selectedDate);
-      // 날짜가 변경되면 편집 모드 해제
-      setIsEditingCondition(false);
-      setIsEditingWorkout(false);
-      setIsEditingMeal(false);
+      fetchAllData(selectedDate)
+      setIsEditingCondition(false)
+      setIsEditingWorkout(false)
+      setIsEditingMeal(false)
     }
-  }, [selectedDate]);
+  }, [selectedDate, fetchAllData])
 
-  // 컨디션 편집 관련 핸들러
-  const handleEditCondition = () => {
-    setIsEditingCondition(true);
-  };
+  const handleEditCondition = () => setIsEditingCondition(true)
+  const handleConditionSave = () => { setIsEditingCondition(false); if (selectedDate) fetchAllData(selectedDate) }
+  const handleConditionCancel = () => setIsEditingCondition(false)
 
-  const handleConditionSave = () => {
-    setIsEditingCondition(false);
-    fetchAllData(selectedDate);
-  };
+  const handleEditWorkout = () => setIsEditingWorkout(true)
+  const handleWorkoutSave = () => { setIsEditingWorkout(false); if (selectedDate) fetchAllData(selectedDate) }
+  const handleWorkoutCancel = () => setIsEditingWorkout(false)
 
-  const handleConditionCancel = () => {
-    setIsEditingCondition(false);
-  };
+  const handleEditMeal = () => setIsEditingMeal(true)
+  const handleMealSave = () => { setIsEditingMeal(false); if (selectedDate) fetchAllData(selectedDate) }
+  const handleMealCancel = () => setIsEditingMeal(false)
 
-  // 운동 편집 관련 핸들러
-  const handleEditWorkout = () => {
-    setIsEditingWorkout(true);
-  };
-
-  const handleWorkoutSave = () => {
-    setIsEditingWorkout(false);
-    fetchAllData(selectedDate);
-  };
-
-  const handleWorkoutCancel = () => {
-    setIsEditingWorkout(false);
-  };
-
-  // 식단 편집 관련 핸들러
-  const handleEditMeal = () => {
-    setIsEditingMeal(true);
-  };
-
-  const handleMealSave = () => {
-    setIsEditingMeal(false);
-    fetchAllData(selectedDate);
-  };
-
-  const handleMealCancel = () => {
-    setIsEditingMeal(false);
-  };
-
-  // 로딩 상태
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
@@ -215,10 +185,9 @@ const DailyLogView = ({ selectedDate }) => {
           <p className="text-gray-600">선택된 날짜의 모든 기록을 가져오고 있습니다.</p>
         </div>
       </div>
-    );
+    )
   }
 
-  // 에러 상태
   if (error) {
     return (
       <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
@@ -227,19 +196,18 @@ const DailyLogView = ({ selectedDate }) => {
           <h3 className="text-lg font-medium text-gray-900 mb-2">오류가 발생했습니다</h3>
           <p className="text-red-600">{error}</p>
           <button
-            onClick={() => fetchAllData(selectedDate)}
+            onClick={() => selectedDate && fetchAllData(selectedDate)}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
           >
             다시 시도
           </button>
         </div>
       </div>
-    );
+    )
   }
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
-      {/* 헤더 */}
       <div className="flex items-center space-x-3 mb-8">
         <Calendar className="w-7 h-7 text-blue-500" />
         <div>
@@ -256,7 +224,6 @@ const DailyLogView = ({ selectedDate }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 오늘의 컨디션 섹션 */}
         <div className="bg-pink-50 p-6 rounded-lg border border-pink-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
@@ -281,19 +248,15 @@ const DailyLogView = ({ selectedDate }) => {
               </button>
             )}
           </div>
-          
           {isEditingCondition ? (
-            // 편집 모드: DailyConditionForm 렌더링
             <div className="bg-white p-4 rounded-lg border border-pink-200">
               <DailyConditionForm
-                logToEdit={conditionData}
-                selectedDate={selectedDate}
+                selectedDate={selectedDate || ''}
                 onSave={handleConditionSave}
                 onCancel={handleConditionCancel}
               />
             </div>
           ) : (
-            // 보기 모드: 요약 정보 표시
             conditionData ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
@@ -330,7 +293,6 @@ const DailyLogView = ({ selectedDate }) => {
                     </div>
                   </div>
                 </div>
-                
                 {conditionData.diary_entry && (
                   <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
                     <div className="flex items-center space-x-2 mb-2">
@@ -352,7 +314,6 @@ const DailyLogView = ({ selectedDate }) => {
           )}
         </div>
 
-        {/* 인바디 기록 섹션 */}
         <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
@@ -364,7 +325,6 @@ const DailyLogView = ({ selectedDate }) => {
               <span>수정</span>
             </button>
           </div>
-          
           {inbodyData ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
@@ -392,7 +352,6 @@ const DailyLogView = ({ selectedDate }) => {
           )}
         </div>
 
-        {/* 운동 기록 섹션 */}
         <div className="bg-green-50 p-6 rounded-lg border border-green-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
@@ -417,33 +376,30 @@ const DailyLogView = ({ selectedDate }) => {
               </button>
             )}
           </div>
-          
           {isEditingWorkout ? (
-            // 편집 모드: WorkoutLogForm 렌더링
             <div className="bg-white p-4 rounded-lg border border-green-200">
               <WorkoutLogForm
-                selectedDate={selectedDate}
+                selectedDate={selectedDate || ''}
                 onSave={handleWorkoutSave}
                 onCancel={handleWorkoutCancel}
               />
             </div>
           ) : (
-            // 보기 모드: 운동 기록 리스트
             workoutData && workoutData.length > 0 ? (
               <div className="space-y-3">
-                {workoutData.map((workout, index) => (
+                {workoutData.map((workout: WorkoutLog, index: number) => (
                   <div key={index} className="p-3 bg-white rounded-lg border border-green-200">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium text-green-800">{workout.exercise_name}</h4>
                       <span className="text-xs text-gray-500">
-                        {new Date(workout.created_at).toLocaleTimeString('ko-KR', { 
+                        {workout.created_at ? new Date(workout.created_at).toLocaleTimeString('ko-KR', { 
                           hour: '2-digit', 
                           minute: '2-digit' 
-                        })}
+                        }) : ''}
                       </span>
                     </div>
                     <div className="grid grid-cols-1 gap-2">
-                      {workout.workout_data && workout.workout_data.map((set, setIndex) => (
+                      {workout.workout_data && workout.workout_data.map((set: WorkoutSet, setIndex: number) => (
                         <div key={setIndex} className="flex justify-between text-sm text-gray-600">
                           <span>세트 {setIndex + 1}</span>
                           <span>{set.reps}회 × {set.weight_kg}kg</span>
@@ -462,7 +418,6 @@ const DailyLogView = ({ selectedDate }) => {
           )}
         </div>
 
-        {/* 식사 기록 섹션 */}
         <div className="bg-orange-50 p-6 rounded-lg border border-orange-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
@@ -487,21 +442,18 @@ const DailyLogView = ({ selectedDate }) => {
               </button>
             )}
           </div>
-          
           {isEditingMeal ? (
-            // 편집 모드: MealLogForm 렌더링
             <div className="bg-white p-4 rounded-lg border border-orange-200">
               <MealLogForm
-                selectedDate={selectedDate}
+                selectedDate={selectedDate || ''}
                 onSave={handleMealSave}
                 onCancel={handleMealCancel}
               />
             </div>
           ) : (
-            // 보기 모드: 식사 기록 리스트
             mealData && mealData.length > 0 ? (
               <div className="space-y-3">
-                {mealData.map((meal, index) => (
+                {mealData.map((meal: MealEvent, index: number) => (
                   <div key={index} className="p-3 bg-white rounded-lg border border-orange-200">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-orange-800">
@@ -513,7 +465,7 @@ const DailyLogView = ({ selectedDate }) => {
                       <span className="text-sm text-orange-600">{meal.total_calories} kcal</span>
                     </div>
                     <div className="space-y-1">
-                      {meal.meal_items && meal.meal_items.map((item, itemIndex) => (
+                      {meal.meal_items && meal.meal_items.map((item: MealItem, itemIndex: number) => (
                         <div key={itemIndex} className="flex justify-between text-sm text-gray-600">
                           <span>
                             {item.food_db ? item.food_db.name : item.custom_food_name} 
@@ -554,7 +506,9 @@ const DailyLogView = ({ selectedDate }) => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default DailyLogView; 
+export default DailyLogView
+
+

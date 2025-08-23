@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "bash",
+      "args": [
+        "-lc",
+        "supabase-mcp-server --access-token \"sbp_1fde7d4ac1a1fd7581a1541e8f8f3a2eb8bfca97\""
+      ]
+    }
+  }
+}

@@ -1,7 +1,7 @@
 // src/app/survey/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -26,11 +26,14 @@ export default function SurveyPage() {
   }, [answers]);
 
   // 키보드 네비게이션
+  const handleAnswerRef = React.useRef(handleAnswer)
+  useEffect(() => { handleAnswerRef.current = handleAnswer }, [handleAnswer])
+
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       const num = parseInt(e.key);
       if (num >= 1 && num <= QUESTIONS[currentQuestion].options.length) {
-        handleAnswer(QUESTIONS[currentQuestion].options[num - 1].score);
+        handleAnswerRef.current(QUESTIONS[currentQuestion].options[num - 1].score);
       }
     };
     
@@ -38,7 +41,7 @@ export default function SurveyPage() {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [currentQuestion]);
 
-  const handleAnswer = async (score: number) => {
+  const handleAnswer = useCallback(async (score: number) => {
     const newAnswers = [...answers];
     newAnswers[currentQuestion] = score;
     setAnswers(newAnswers);
@@ -54,7 +57,7 @@ export default function SurveyPage() {
       const answersParam = encodeURIComponent(JSON.stringify(newAnswers));
       router.push(`/results?answers=${answersParam}`);
     }
-  };
+  }, [answers, currentQuestion, router]);
 
   const handlePrevious = () => {
     if (currentQuestion > 0) {

@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-export async function selectLatest<T>(table: string, match: Record<string, any>): Promise<T | null> {
+export async function selectLatest<T>(table: string, match: Record<string, unknown>): Promise<T | null> {
   const { data, error } = await supabase
     .from(table)
     .select('*')
@@ -9,12 +9,13 @@ export async function selectLatest<T>(table: string, match: Record<string, any>)
     .limit(1)
 
   if (error) throw error
-  return (data && (data as any[])[0]) ?? null
+  const rows = (data as T[]) || []
+  return rows[0] ?? null
 }
 
 export async function upsertByUserDate<T>(
   table: string,
-  payload: Record<string, any>
+  payload: Record<string, unknown>
 ): Promise<T> {
   const { data, error } = await supabase
     .from(table)
@@ -25,5 +26,4 @@ export async function upsertByUserDate<T>(
   if (error) throw error
   return data as T
 }
-
 

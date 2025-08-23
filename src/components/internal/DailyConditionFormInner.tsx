@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 import React, { useEffect, useState } from 'react'
 import { supabase, auth } from '@/lib/supabase'
@@ -6,12 +5,19 @@ import { Calendar, Heart, Battery, Moon, Save, RefreshCw, BookOpen, X } from 'lu
 
 type Props = {
   onDataSaved?: () => void
-  selectedDate?: string
+  selectedDate?: string | null
   onSave?: () => void
   onCancel?: () => void
 }
 
-export default function DailyConditionFormInner({ onDataSaved, selectedDate = null, onSave = null, onCancel = null }: Props){
+type DailyConditionRecord = {
+  overall_mood: string
+  fatigue_level: string
+  sleep_quality: string
+  diary_entry?: string | null
+}
+
+export default function DailyConditionFormInner({ onDataSaved, selectedDate = null, onSave, onCancel }: Props){
   const isEditMode = false
   const initialDate = selectedDate || new Date().toISOString().split('T')[0]
   const [logDate, setLogDate] = useState(initialDate)
@@ -23,7 +29,7 @@ export default function DailyConditionFormInner({ onDataSaved, selectedDate = nu
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [existingRecord, setExistingRecord] = useState(null)
+  const [existingRecord, setExistingRecord] = useState<DailyConditionRecord | null>(null)
 
   const moodOptions = [
     { value: 'great', label: '최고', emoji: '🤩', color: 'text-green-600' },
@@ -43,7 +49,7 @@ export default function DailyConditionFormInner({ onDataSaved, selectedDate = nu
     { value: 'bad', label: '나쁨', emoji: '😖', color: 'text-red-600' }
   ]
 
-  const fetchExistingData = async (date) => {
+  const fetchExistingData = async (date: string) => {
     try {
       setIsLoading(true)
       setError('')
@@ -57,7 +63,7 @@ export default function DailyConditionFormInner({ onDataSaved, selectedDate = nu
         .order('created_at', { ascending: false })
         .limit(1)
       if (fetchError) throw fetchError
-      const record = Array.isArray(data) && data.length > 0 ? data[0] : null
+      const record = (Array.isArray(data) && data.length > 0 ? (data[0] as DailyConditionRecord) : null)
       if (record) {
         setExistingRecord(record)
         setOverallMood(record.overall_mood)
@@ -72,8 +78,9 @@ export default function DailyConditionFormInner({ onDataSaved, selectedDate = nu
         setDiaryEntry('')
       }
     } catch (err) {
-      console.error('데이터 가져오기 오류:', err)
-      setError(err.message || '데이터를 가져오는 중 오류가 발생했습니다.')
+      const anyErr = err as { message?: string }
+      console.error('데이터 가져오기 오류:', anyErr)
+      setError(anyErr.message || '데이터를 가져오는 중 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -86,9 +93,9 @@ export default function DailyConditionFormInner({ onDataSaved, selectedDate = nu
     } else if (logDate) {
       fetchExistingData(logDate)
     }
-  }, [selectedDate])
+  }, [selectedDate, logDate])
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     try {
       setIsSaving(true)
@@ -111,13 +118,14 @@ export default function DailyConditionFormInner({ onDataSaved, selectedDate = nu
         .select()
         .single()
       if (upsertError) throw upsertError
-      setExistingRecord(data)
+      setExistingRecord(data as DailyConditionRecord)
       setMessage('컨디션과 일기가 성공적으로 저장되었습니다!')
       if (onSave) setTimeout(() => onSave(), 1000)
       if (onDataSaved) onDataSaved()
     } catch (err) {
-      console.error('컨디션 저장 오류:', err)
-      setError(err.message || '컨디션 저장 중 오류가 발생했습니다.')
+      const anyErr = err as { message?: string }
+      console.error('컨디션 저장 오류:', anyErr)
+      setError(anyErr.message || '컨디션 저장 중 오류가 발생했습니다.')
     } finally {
       setIsSaving(false)
     }
@@ -141,7 +149,7 @@ export default function DailyConditionFormInner({ onDataSaved, selectedDate = nu
             <Calendar className="w-4 h-4" />
             <span>날짜 선택</span>
           </label>
-          <input type="date" value={logDate} onChange={(e) => !isEditMode && !selectedDate && setLogDate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500" disabled={isLoading || isEditMode || selectedDate} readOnly={isEditMode || selectedDate} />
+          <input type="date" value={logDate} onChange={(e) => !isEditMode && !selectedDate && setLogDate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500" disabled={isLoading || isEditMode || !!selectedDate} readOnly={isEditMode || !!selectedDate} />
           {existingRecord && !isEditMode && (<p className="text-sm text-blue-600 mt-1">ℹ️ 이 날짜에 이미 기록이 있습니다. 수정 후 저장하면 업데이트됩니다.</p>)}
         </div>
         {isLoading ? (
@@ -208,7 +216,7 @@ export default function DailyConditionFormInner({ onDataSaved, selectedDate = nu
               </div>
             </div>
             <div className={`flex ${isEditMode ? 'justify-between' : 'justify-end'} pt-4`}>
-              {onCancel && (
+              {typeof onCancel === 'function' && (
                 <button type="button" onClick={handleCancel} className="flex items-center space-x-2 px-6 py-3 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors">
                   <X className="w-4 h-4" />
                   <span>취소</span>
