@@ -1,9 +1,15 @@
 // src/lib/utils.ts
 import { SurveyResponse, Recommendation } from './types';
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
 
 const MAX_SCORE = 10;
 const PHYSICAL_HEALTH_FACTORS = 4;
 const MENTAL_HEALTH_FACTORS = 4;
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
 
 export const calculateHealthScore = (
   physicalHealth: SurveyResponse['physicalHealth'],
@@ -48,4 +54,4 @@ export const getRecommendationType = (type: Recommendation['type']): string => {
     mental: '멘탈케어',
   };
   return types[type] || '알 수 없음';
-}; 
+};

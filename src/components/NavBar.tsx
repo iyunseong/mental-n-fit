@@ -45,7 +45,7 @@ const NavBar: React.FC = () => {
   }
 
   return (
-    <nav className="bg-white/95 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-50">
+    <nav className="bg-white/90 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
           <Link href="/" className="flex items-center space-x-2">
@@ -59,13 +59,13 @@ const NavBar: React.FC = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/#features" className="text-gray-600 hover:text-blue-600 transition-colors">
+            <Link href="/#features" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               특징
             </Link>
-            <Link href="/survey" className="text-gray-600 hover:text-blue-600 transition-colors">
+            <Link href="/survey" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               MetaType 16
             </Link>
-            <Link href="/#how-it-works" className="text-gray-600 hover:text-blue-600 transition-colors">
+            <Link href="/#how-it-works" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               작동원리
             </Link>
 
@@ -73,7 +73,7 @@ const NavBar: React.FC = () => {
               <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             ) : user ? (
               <div className="flex items-center space-x-4">
-                <Link href="/profile" className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors">
+                <Link href="/profile" className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors">
                   <UserIcon className="w-5 h-5" />
                 </Link>
                 <Link href="/dashboard">
@@ -81,7 +81,7 @@ const NavBar: React.FC = () => {
                     대시보드
                   </Button>
                 </Link>
-                <button onClick={handleLogout} className="text-gray-600 hover:text-gray-900 text-sm">
+                <button onClick={handleLogout} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 text-sm">
                   로그아웃
                 </button>
               </div>
@@ -104,9 +104,9 @@ const NavBar: React.FC = () => {
           {/* Mobile Menu Button */}
           <button className="md:hidden p-2" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
             {isMobileMenuOpen ? (
-              <X className="w-6 h-6 text-gray-600" />
+              <X className="w-6 h-6 text-gray-600 dark:text-gray-300" />
             ) : (
-              <Menu className="w-6 h-6 text-gray-600" />
+              <Menu className="w-6 h-6 text-gray-600 dark:text-gray-300" />
             )}
           </button>
         </div>
@@ -116,21 +116,21 @@ const NavBar: React.FC = () => {
           <div className="md:hidden py-4 space-y-4">
             <Link
               href="/#features"
-              className="block w-full text-left px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors"
+              className="block w-full text-left px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               특징
             </Link>
             <Link
               href="/survey"
-              className="block w-full text-left px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors"
+              className="block w-full text-left px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               MetaType 16
             </Link>
             <Link
               href="/#how-it-works"
-              className="block w-full text-left px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors"
+              className="block w-full text-left px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               작동원리
@@ -144,7 +144,7 @@ const NavBar: React.FC = () => {
               <div className="px-4 py-2 space-y-4">
                 <Link
                   href="/profile"
-                  className="flex items-center justify-center space-x-2 text-sm text-gray-700 py-2"
+                  className="flex items-center justify-center space-x-2 text-sm text-gray-700 dark:text-gray-300 py-2"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <UserIcon className="w-4 h-4" />
@@ -160,7 +160,7 @@ const NavBar: React.FC = () => {
                     handleLogout()
                     setIsMobileMenuOpen(false)
                   }}
-                  className="block w-full text-center py-2 text-gray-600 hover:text-gray-900"
+                  className="block w-full text-center py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
                 >
                   로그아웃
                 </button>

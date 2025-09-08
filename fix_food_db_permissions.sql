@@ -1,0 +1,1 @@
+GRANT SELECT ON TABLE food_db TO anon;

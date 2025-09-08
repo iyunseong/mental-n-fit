@@ -4,24 +4,19 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { toLocalDateISO } from '@/lib/date/toLocalDateISO';
 import { ProgressRing } from '@/lib/ui/rings';
+import { CARD, INPUT, BTN, BTN_SOLID, BTN_OUTLINE, BTN_GHOST } from '@/lib/ui/tokens';
 import FormShell from './_FormShell';
 import { safeMutate } from '@/lib/swrSafe';
 import { swrKeys } from '@/lib/swrKeys';
-import { saveMeal } from '@/actions/meals';
+import { saveMeal, listRecentMeals, loadMealEventItems, type RecentMealSummary } from '@/actions/meals';
 import { searchFood } from '@/lib/food/searchFood';
 import { supabase } from '@/lib/supabase';
 import type { MealForm, MealItemInput, MealType } from '@/types/meal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/Button';
 
 // 소수 1자리 반올림
 const round1 = (n: number) => Math.round(n * 10) / 10;
-
-// ===== UI Tokens =====
-const CARD = "rounded-2xl border border-gray-200 bg-white shadow-sm";
-const INPUT = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 focus:border-sky-400 transition";
-const BTN = "inline-flex items-center justify-center rounded-lg text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50";
-const BTN_SOLID = `${BTN} bg-black text-white hover:opacity-90`;
-const BTN_OUTLINE = `${BTN} border border-gray-300 hover:bg-gray-50 text-gray-800`;
-const BTN_GHOST = `${BTN} text-gray-600 hover:bg-gray-100 border border-transparent`;
 
 function IconTrash(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -51,7 +46,7 @@ type MealItemsRow = {
   protein_g: number | null;
   fat_g: number | null;
   fiber_g: number | null;
-  food_db?: { name: string | null } | null;
+  food_db?: { name: string | null } | Array<{ name: string | null }> | null;
 };
 
 type MealEventWithItems = {
@@ -61,6 +56,9 @@ type MealEventWithItems = {
   notes: string | null;
   meal_items: MealItemsRow[] | null;
 };
+
+// searchFood 결과 원소 타입
+type SearchFoodRow = Awaited<ReturnType<typeof searchFood>> extends Array<infer R> ? R : never;
 
 export default function MealLogForm({
   selectedDate = null,
@@ -110,7 +108,7 @@ export default function MealLogForm({
     setAutoCalc(a => a.filter((_, i) => i !== index));
   }, [remove]);
 
-  // 검색
+  // ===== 검색
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState<Awaited<ReturnType<typeof searchFood>>>([]);
@@ -138,16 +136,23 @@ export default function MealLogForm({
   }, [debouncedSearchQuery]);
 
   // 항목 추가: 검색 선택 시 자동계산 on
-  const addFoodItem = (item: MealItemInput) => {
-    append({
+  const addFoodItem = (item: MealItemInput | SearchFoodRow) => {
+    const normalized: MealItemInput = {
+      id: 'id' in item && typeof item.id === 'number' ? item.id : undefined,
       name: item.name,
-      carb_g: item.carb_g,
-      protein_g: item.protein_g,
-      fat_g: item.fat_g,
+      carb_g: 'carb_g' in item ? (item as { carb_g?: number }).carb_g : undefined,
+      protein_g: 'protein_g' in item ? (item as { protein_g?: number }).protein_g : undefined,
+      fat_g: 'fat_g' in item ? (item as { fat_g?: number }).fat_g : undefined,
+    };
+    append({
+      name: normalized.name,
+      carb_g: normalized.carb_g,
+      protein_g: normalized.protein_g,
+      fat_g: normalized.fat_g,
       quantity_g: 100,
-      id: item.id, // 있으면 유지
+      id: normalized.id,
     });
-    setPer100(p => [...p, { carb_g: item.carb_g, protein_g: item.protein_g, fat_g: item.fat_g }]);
+    setPer100(p => [...p, { carb_g: normalized.carb_g, protein_g: normalized.protein_g, fat_g: normalized.fat_g }]);
     setAmounts(a => [...a, 100]);     // 기본 100g
     setAutoCalc(a => [...a, true]);   // 자동계산 on
     setSearchQuery('');
@@ -185,90 +190,97 @@ export default function MealLogForm({
   }, [totalProtein]);
 
   // (date, mealType) 변경 시 DB에서 해당 기록 로드 → RHF 주입
-  useEffect(() => {
-    let cancelled = false;
+// (date, mealType) 변경 시 DB에서 해당 기록 로드 → RHF 주입
+useEffect(() => {
+  let cancelled = false;
 
-    async function loadExisting() {
-      if (!date || !mealType) return;
+  async function loadExisting() {
+    if (!date || !mealType) return;
 
-      const { data, error } = await supabase
-        .from('meal_events')
-        .select(`
+    const { data, error } = await supabase
+      .from('meal_events')
+      .select(`
+        id,
+        ate_at,
+        meal_type,
+        notes,
+        meal_items (
           id,
-          ate_at,
-          meal_type,
-          notes,
-          meal_items (
-            id,
-            food_id,
-            custom_food_name,
-            quantity,
-            carb_g,
-            protein_g,
-            fat_g,
-            fiber_g,
-            food_db:food_id ( name )
-          )
-        `)
-        .eq('date', date)
-        .eq('meal_type', mealType)
-        .order('ate_at', { ascending: true });
+          food_id,
+          custom_food_name,
+          quantity,
+          carb_g,
+          protein_g,
+          fat_g,
+          fiber_g,
+          food_db:food_id ( name )
+        )
+      `)
+      .eq('date', date)
+      .eq('meal_type', mealType)            // ✅ 탭에서 선택한 식사 종류만 로드
+      .order('ate_at', { ascending: true });
 
-      if (cancelled) return;
+    if (cancelled) return;
 
-      if (error || !data || data.length === 0) {
-        // 기록 없음 → 폼 초기화(항목 비우고, 기존 time 유지)
-        reset(
-          { ...getValues(), items: [], notes: undefined },
-          { keepDirty: false }
-        );
-        setPer100([]);
-        setAmounts([]);
-        setAutoCalc([]);
-        setMergedCount(0);
-        return;
-      }
-
-      // 여러 이벤트의 아이템들을 병합
-      const mergedItems = data.flatMap((ev) =>
-        (ev.meal_items ?? []).map((mi) => ({
-          id: mi.food_id ?? undefined,
-          name: mi.custom_food_name ?? mi.food_db?.name ?? '',
-          quantity_g: Number(mi.quantity ?? 0),
-          carb_g: Number(mi.carb_g ?? 0),
-          protein_g: Number(mi.protein_g ?? 0),
-          fat_g: Number(mi.fat_g ?? 0),
-          fiber_g: Number(mi.fiber_g ?? 0),
-        }))
-      );
-
-      // 시간은 가장 마지막 이벤트의 ate_at 사용(가장 최근 기록을 대표로)
-      const last = data[data.length - 1];
-      const hhmm = (() => {
-        try { return new Date(last.ate_at).toTimeString().slice(0, 5); }
-        catch { return getValues().time ?? '00:00'; }
-      })();
-
+    if (error || !data || data.length === 0) {
+      // 기록 없음 → 폼 초기화(항목 비우고, 기존 time 유지)
       reset(
-        {
-          ...getValues(),
-          time: hhmm,
-          items: mergedItems,
-          notes: last?.notes ?? undefined,
-        },
+        { ...getValues(), items: [], notes: undefined },
         { keepDirty: false }
       );
-
-      // DB에서 로딩된 항목은 모두 수동 모드(원본 값 보존)
-      setPer100(mergedItems.map(() => ({})));
-      setAmounts(mergedItems.map((it) => Number(it.quantity_g ?? 0)));
-      setAutoCalc(mergedItems.map(() => false));
-      setMergedCount(data.length);
+      setPer100([]);
+      setAmounts([]);
+      setAutoCalc([]);
+      setMergedCount(0);
+      return;
     }
 
-    loadExisting();
-    return () => { cancelled = true; };
-  }, [date, mealType, reset, getValues]);
+    // 같은 (날짜, meal_type) 안에 여러 이벤트가 있다면 병합해서 표시
+    const mergedItems = data.flatMap((ev) =>
+      (ev.meal_items ?? []).map((mi) => {
+        const fd = mi.food_db as { name?: string | null } | Array<{ name?: string | null }> | null;
+        const foodName =
+          Array.isArray(fd) ? (fd[0]?.name ?? '') : (fd?.name ?? '');
+        return {
+          id: mi.food_id ?? undefined,
+          name: mi.custom_food_name ?? foodName ?? '',
+          quantity_g: Number(mi.quantity ?? 0),
+          carb_g: mi.carb_g == null ? undefined : Number(mi.carb_g),
+          protein_g: mi.protein_g == null ? undefined : Number(mi.protein_g),
+          fat_g: mi.fat_g == null ? undefined : Number(mi.fat_g),
+          fiber_g: mi.fiber_g == null ? undefined : Number(mi.fiber_g),
+        };
+      })
+    );
+
+    // 시간은 가장 마지막 이벤트의 ate_at 사용(가장 최근 기록을 대표로)
+    const last = data[data.length - 1];
+    const hhmm = (() => {
+      try { return new Date(last.ate_at).toTimeString().slice(0, 5); }
+      catch { return getValues().time ?? '00:00'; }
+    })();
+
+    reset(
+      {
+        ...getValues(),
+        time: hhmm,
+        items: mergedItems,
+        notes: (data[data.length - 1]?.notes ?? undefined) as string | undefined,
+      },
+      { keepDirty: false }
+    );
+
+    // DB에서 로딩된 항목은 모두 수동 모드(원본 값 보존)
+    setPer100(mergedItems.map(() => ({})));
+    setAmounts(mergedItems.map((it) => Number(it.quantity_g ?? 0)));
+    setAutoCalc(mergedItems.map(() => false));
+    setMergedCount(data.length);
+  }
+
+  loadExisting();
+  return () => { cancelled = true; };
+}, [date, mealType, reset, getValues]);
+
 
   // 저장
   const onSubmit = async (data: MealForm) => {
@@ -291,7 +303,7 @@ export default function MealLogForm({
       });
 
       const payload: MealForm = { ...data, items: computedItems };
-      await saveMeal(payload); // 서버에서 (user_id, date, meal_type) 기반 upsert + items 교체 구현 예정
+      await saveMeal(payload);
 
       await Promise.all([
         safeMutate(swrKeys.summary(payload.date)),
@@ -304,6 +316,48 @@ export default function MealLogForm({
       console.error('Failed to save meal:', error);
       alert('식사 기록 저장에 실패했습니다.');
     }
+  };
+
+  /* ---------- 최근 식사 불러오기(타입 무시) ---------- */
+  const [prevOpen, setPrevOpen] = useState(false);
+  const [prevLoading, setPrevLoading] = useState(false);
+  const [recentMeals, setRecentMeals] = useState<RecentMealSummary[]>([]);
+
+  const openPreviousPicker = async () => {
+    if (!date) return;
+    setPrevOpen(true);
+    setPrevLoading(true);
+    try {
+      const rows = await listRecentMeals(date, 20);
+      setRecentMeals(rows);
+    } catch {
+      setRecentMeals([]);
+    } finally {
+      setPrevLoading(false);
+    }
+  };
+
+  const pickPreviousEvent = async (eventId: number) => {
+    const currentDate = watch('date');
+    const currentMealType = watch('meal_type');
+    const loaded = await loadMealEventItems(eventId);
+    // 현재 날짜/식사에 붙여넣기 (시간은 기존 유지, 원하면 loaded.time 사용해도 됨)
+    const mergedItems = loaded.items ?? [];
+    reset(
+      {
+        ...getValues(),
+        date: currentDate,
+        time: getValues().time, // 또는 loaded.time ?? getValues().time
+        meal_type: currentMealType,
+        items: mergedItems,
+        notes: loaded.notes ?? undefined,
+      },
+      { keepDirty: true }
+    );
+    setPer100(mergedItems.map(() => ({})));
+    setAmounts(mergedItems.map((it) => Number(it.quantity_g ?? 0)));
+    setAutoCalc(mergedItems.map(() => false));
+    setPrevOpen(false);
   };
 
   return (
@@ -338,10 +392,13 @@ export default function MealLogForm({
                   {type}
                 </button>
               ))}
+              <button type="button" className={`${BTN_OUTLINE} ml-auto px-4 py-2`} onClick={openPreviousPicker}>
+                최근 식사 불러오기
+              </button>
             </div>
             {mergedCount > 1 && (
               <div className="mt-2 text-[11px] text-sky-700 bg-sky-50 border border-sky-100 rounded-md px-2 py-1 inline-block">
-                같은 식사에서 {mergedCount}개의 기록을 병합해 표시합니다.
+                같은 날짜의 {mergedCount}개 식사 기록을 병합해 표시합니다.
               </div>
             )}
           </div>
@@ -524,6 +581,61 @@ export default function MealLogForm({
           </button>
         </div>
       </form>
+
+      {/* 최근 식사 불러오기 모달 (meal_type 무시, 최신 20개 이벤트) */}
+      <Dialog open={prevOpen} onOpenChange={setPrevOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>최근 식사 불러오기</DialogTitle>
+          </DialogHeader>
+
+          {prevLoading && <div className="text-sm text-gray-500">불러오는 중…</div>}
+
+          {!prevLoading && recentMeals.length === 0 && (
+            <div className="text-sm text-gray-500">이전 기록이 없습니다.</div>
+          )}
+
+          {!prevLoading && recentMeals.length > 0 && (
+            <div className="space-y-2 max-h-[360px] overflow-y-auto">
+              {recentMeals.map(row => (
+                <button
+                  key={row.event_id}
+                  type="button"
+                  onClick={() => pickPreviousEvent(row.event_id)}
+                  className="w-full text-left rounded-lg border px-3 py-2 hover:bg-gray-50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">{row.date} <span className="text-gray-500">· {row.time}</span></div>
+                    {row.meal_type && (
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-gray-100 text-gray-700">{row.meal_type}</span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {row.foods.length > 0 ? (
+                      row.foods.map((name, i) => (
+                        <span
+                          key={`${row.event_id}-${name}-${i}`}
+                          className="text-[11px] px-2 py-0.5 rounded bg-gray-100 text-gray-700"
+                        >
+                          {name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-gray-500">항목 없음</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="pt-3 flex justify-end">
+            <Button variant="ghost" onClick={() => setPrevOpen(false)}>
+              닫기
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </FormShell>
   );
 }

@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
+import AppThemeProvider from "./providers";
+import ForceLight from "./ForceLight";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,10 +26,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
-      <body className={inter.className}>
-        <NavBar />
-        {children}
+    <html lang="ko" className="light" suppressHydrationWarning>
+      <body className={`${inter.className} min-h-screen antialiased bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100`}>
+        <AppThemeProvider>
+          <ForceLight />
+          <NavBar />
+          {children}
+        </AppThemeProvider>
       </body>
     </html>
   );

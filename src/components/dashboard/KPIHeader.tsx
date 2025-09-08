@@ -99,37 +99,37 @@ export default async function KPIHeader() {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
         <ProgressRing value={kpi.proteinPct} label="단백질" />
         <div>
-          <div className="text-sm text-gray-500">오늘 단백질</div>
-          <div className="text-lg font-semibold text-gray-900">{kpi.proteinPct}%</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">오늘 단백질</div>
+          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{kpi.proteinPct}%</div>
         </div>
       </div>
-      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
+      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
         <ProgressRing value={kpi.kcalPct} label="칼로리" />
         <div>
-          <div className="text-sm text-gray-500">권장 범위 대비</div>
-          <div className="text-lg font-semibold text-gray-900">{kpi.kcalPct}%</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">권장 범위 대비</div>
+          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{kpi.kcalPct}%</div>
         </div>
       </div>
-      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-800 text-lg font-semibold">{kpi.workoutSessions}/{kpi.workoutGoal}</div>
+      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-800 text-lg font-semibold dark:bg-gray-800 dark:text-gray-200">{kpi.workoutSessions}/{kpi.workoutGoal}</div>
         <div>
-          <div className="text-sm text-gray-500">주간 운동 세션</div>
-          <div className="text-lg font-semibold text-gray-900">목표 {kpi.workoutGoal}회</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">주간 운동 세션</div>
+          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">목표 {kpi.workoutGoal}회</div>
         </div>
       </div>
-      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-800 text-lg font-semibold">{kpi.sleepHoursAvg}h</div>
+      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-800 text-lg font-semibold dark:bg-gray-800 dark:text-gray-200">{kpi.sleepHoursAvg}h</div>
         <div>
-          <div className="text-sm text-gray-500">최근 7일 평균 수면</div>
-          <div className="text-lg font-semibold text-gray-900">{kpi.sleepHoursAvg}시간</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">최근 7일 평균 수면</div>
+          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{kpi.sleepHoursAvg}시간</div>
         </div>
       </div>
       {/* 우측 ConfidenceMeter placeholder */}
       <div className="col-span-full">
-        <div className="w-full h-10 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500">
+        <div className="w-full h-10 rounded-md border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
           ConfidenceMeter 자리 (추가 예정)
         </div>
       </div>

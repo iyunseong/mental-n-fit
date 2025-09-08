@@ -25,22 +25,6 @@ export default function SurveyPage() {
     localStorage.setItem('surveyAnswers', JSON.stringify(answers));
   }, [answers]);
 
-  // 키보드 네비게이션
-  const handleAnswerRef = React.useRef(handleAnswer)
-  useEffect(() => { handleAnswerRef.current = handleAnswer }, [handleAnswer])
-
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      const num = parseInt(e.key);
-      if (num >= 1 && num <= QUESTIONS[currentQuestion].options.length) {
-        handleAnswerRef.current(QUESTIONS[currentQuestion].options[num - 1].score);
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyPress);
-    return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [currentQuestion]);
-
   const handleAnswer = useCallback(async (score: number) => {
     const newAnswers = [...answers];
     newAnswers[currentQuestion] = score;
@@ -59,6 +43,22 @@ export default function SurveyPage() {
     }
   }, [answers, currentQuestion, router]);
 
+  // 키보드 네비게이션
+  const handleAnswerRef = React.useRef(handleAnswer)
+  useEffect(() => { handleAnswerRef.current = handleAnswer }, [handleAnswer])
+
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= QUESTIONS[currentQuestion].options.length) {
+        handleAnswerRef.current(QUESTIONS[currentQuestion].options[num - 1].score);
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, [currentQuestion]);
+
   const handlePrevious = () => {
     if (currentQuestion > 0) {
       setCurrentQuestion(currentQuestion - 1);
@@ -72,9 +72,9 @@ export default function SurveyPage() {
   const question = QUESTIONS[currentQuestion];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-8">
           {/* Navigation */}
           <div className="flex justify-between items-center mb-8">
             <div className="flex items-center space-x-4">
@@ -104,11 +104,11 @@ export default function SurveyPage() {
 
           {/* 진행률 표시 */}
           <div className="mb-8">
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
+            <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
               <span>진행률</span>
               <span>{getProgress()}%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-2">
               <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${getProgress()}%` }}
@@ -118,7 +118,7 @@ export default function SurveyPage() {
 
           {/* 질문 */}
           <div className="transition-all duration-300 transform">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-8">
               {question.text}
             </h2>
 
@@ -128,9 +128,9 @@ export default function SurveyPage() {
                 <button
                   key={index}
                   onClick={() => handleAnswer(option.score)}
-                  className="w-full p-4 text-left border rounded-lg hover:bg-blue-50 hover:border-blue-500 transition-colors"
+                  className="w-full p-4 text-left border rounded-lg hover:bg-blue-50 hover:border-blue-500 dark:border-gray-700 dark:hover:bg-gray-800 dark:text-gray-100 transition-colors"
                 >
-                  <span className="text-gray-500 mr-2">[{index + 1}]</span>
+                  <span className="text-gray-500 dark:text-gray-400 mr-2">[{index + 1}]</span>
                   {option.text}
                 </button>
               ))}
@@ -152,7 +152,7 @@ export default function SurveyPage() {
           {/* 로딩 상태 */}
           {isCalculating && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-8 rounded-lg shadow-lg">
+              <div className="bg-white dark:bg-gray-900 p-8 rounded-lg shadow-lg">
                 <div className="flex items-center space-x-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                   <p className="text-lg">결과를 계산중입니다...</p>

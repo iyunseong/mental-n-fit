@@ -149,7 +149,7 @@ const HealthCalendar: React.FC<Props> = ({ onDateSelect = undefined, compact = f
   const hasDiary = moodData?.diary_entry && moodData.diary_entry.trim().length > 0
 
   return (
-    <div className={`${compact ? 'p-4' : 'max-w-4xl mx-auto p-6'} bg-white rounded-lg shadow-sm border border-gray-200`}>
+    <div className={`${compact ? 'p-4' : 'max-w-4xl mx-auto p-6'} bg-white rounded-lg shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800`}>
       {!compact && (
         <div className="flex items-center justify-between mb-4">
           <div className="space-y-1">

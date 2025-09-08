@@ -1,4 +1,3 @@
-// src/components/forms/InbodyForm.tsx
 "use client"
 import React, { useEffect, useState } from 'react'
 import InbodyFormInner from '../internal/InbodyFormInner'
@@ -94,24 +93,22 @@ export default function InbodyForm({ onDataSaved, selectedDate = null }: Props) 
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <ProgressRing value={weightDeltaPct} label="체중 변화" />
-        <div className="text-sm text-gray-600">
-          최근 변화량 <span className="font-semibold">{deltaKg >= 0 ? '+' : ''}{deltaKg.toFixed(1)} kg</span>
+        <div className="text-sm text-gray-600 dark:text-gray-300">
+          최근 변화량 <span className="font-semibold dark:text-white">{deltaKg >= 0 ? '+' : ''}{deltaKg.toFixed(1)} kg</span>
         </div>
       </div>
       <div>
-        <div className="text-xs font-medium text-gray-500 mb-2">최근 프리셋</div>
+        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">최근 프리셋</div>
         <div className="flex flex-wrap gap-2">
           {recent.map((p) => (
-            <button key={p.id} type="button" onClick={() => applyPreset(p.payload)} className="px-2.5 py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400">
+            <button key={p.id} type="button" onClick={() => applyPreset(p.payload)} className="px-2.5 py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400">
               {p.label}
             </button>
           ))}
         </div>
       </div>
-      {/* 내부 InbodyForm은 onDataSaved만 지원 */}
-      <InbodyFormInner onDataSaved={handleSaved} />
+      {/* ✅ 내부 폼에 선택 날짜 전달 */}
+      <InbodyFormInner onDataSaved={handleSaved} selectedDate={dateISO} />
     </div>
   )
 }
-
-

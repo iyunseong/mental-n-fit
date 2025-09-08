@@ -1,27 +1,25 @@
 /* src/app/globals.css */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Light/Dark color-scheme hints */
+:root { color-scheme: light; }
+.dark { color-scheme: light; }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* Base body colors are applied via layout.tsx classes */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Links keep current color (no purple visited) */
+a { color: inherit; text-decoration: none; }
+a:visited { color: inherit; }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* Inputs text & placeholder contrast */
+input, textarea, select { color: #111827; }
+::placeholder { color: #6b7280; }
+.dark input, .dark textarea, .dark select { color: #f3f4f6; }
+.dark ::placeholder { color: #d1d5db; }
+
+/* (Optional) scrollbar tone */
+/* WebKit */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background-color: rgba(100,116,139,0.6); border-radius: 9999px; }
+*::-webkit-scrollbar-track { background-color: transparent; }
+.dark *::-webkit-scrollbar-thumb { background-color: rgba(71,85,105,0.7); }
