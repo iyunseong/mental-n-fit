@@ -1,3 +1,4 @@
+// src/components/dashboard/KPIHeader.tsx
 import { supabase } from '@/lib/supabase'
 import { ProgressRing } from '@/lib/ui/rings'
 
@@ -93,7 +94,7 @@ async function getKpi() {
   }
 }
 
-export default async function KPIHeader() {
+export default async function KPIHeader({ from, to }: { from?: Date|string, to?: Date|string }) {
   const kpi = await getKpi()
   if (!kpi) return null
 

@@ -1,108 +1,112 @@
 'use client'
-import React, { useEffect, useState } from 'react'
-import { ProgressRing } from '@/lib/ui/rings'
 
-type Kpi = {
-  proteinPct: number
-  kcalPct: number
-  workoutSessions: number
-  workoutGoal: number
-  sleepHoursAvg: number
+import useSWR from 'swr'
+import { Utensils, Activity, Bed, Scale } from 'lucide-react'
+import { swrKeys } from '@/lib/swrKeys'
+import { getRange } from '@/lib/date/getRange'
+import React from 'react'
+
+type Props = {
+  from?: Date | string
+  to?: Date | string
 }
 
-export default function KPIHeaderClient() {
-  const [kpi, setKpi] = useState<Kpi | null>(null)
+type KPIResponse = {
+  kcal7d: number | null
+  volume7d: number | null
+  sleep7d: number | null
+  weightDelta7d: number | null
+}
 
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const res = await fetch('/api/kpi-today', { cache: 'no-store' })
-        if (!res.ok) throw new Error('kpi api failed')
-        const data = await res.json()
-        setKpi(data)
-      } catch (e) {
-        if (process.env.NODE_ENV !== 'production') console.error('[KPIHeaderClient] fetch failed', e)
-      }
-    })()
-  }, [])
+const fetcher = async (url: string) => {
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`)
+  return res.json()
+}
 
-  if (!kpi) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-          <ProgressRing value={0} label="단백질" />
-          <div>
-            <div className="text-sm text-gray-500">오늘 단백질</div>
-            <div className="text-lg font-semibold text-gray-400">…</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-          <ProgressRing value={0} label="칼로리" />
-          <div>
-            <div className="text-sm text-gray-500">권장 범위 대비</div>
-            <div className="text-lg font-semibold text-gray-400">…</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-400 text-lg font-semibold">…</div>
-          <div>
-            <div className="text-sm text-gray-500">주간 운동 세션</div>
-            <div className="text-lg font-semibold text-gray-400">…</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-400 text-lg font-semibold">…</div>
-          <div>
-            <div className="text-sm text-gray-500">최근 7일 평균 수면</div>
-            <div className="text-lg font-semibold text-gray-400">…</div>
-          </div>
-        </div>
-        <div className="col-span-full">
-          <div className="w-full h-10 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500">
-            ConfidenceMeter 자리 (추가 예정)
-          </div>
-        </div>
+const ensureISO = (d?: Date | string): string => {
+  if (!d) return ''
+  if (typeof d === 'string') return d.slice(0, 10)
+  // YYYY-MM-DD in local TZ
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+    .toISOString()
+    .slice(0, 10)
+}
+
+const Skeleton = () => (
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    {[0, 1, 2, 3].map((i) => (
+      <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="h-4 w-24 bg-gray-100 animate-pulse rounded mb-3" />
+        <div className="h-6 w-16 bg-gray-100 animate-pulse rounded" />
       </div>
-    )
+    ))}
+  </div>
+)
+
+export default function KPIHeaderClient({ from, to }: Props) {
+  // 기본값: 최근 30일 (서버에서 from/to를 안 넘긴 경우)
+  const fallback = getRange(30, 'Asia/Seoul')
+  const fromISO = ensureISO(from) || fallback.fromISO
+  const toISO = ensureISO(to) || fallback.toISO
+
+  const key = swrKeys.kpi(fromISO, toISO)
+  const { data, error, isLoading } = useSWR<KPIResponse>(
+    key,
+    () => fetcher(`/api/kpi?from=${fromISO}&to=${toISO}`),
+    { revalidateOnFocus: false, keepPreviousData: true }
+  )
+
+  if (isLoading) return <Skeleton />
+
+  const fmt0 = (v: number | null | undefined) =>
+    v == null || Number.isNaN(v) ? '—' : Math.round(v).toString()
+
+  const fmt1 = (v: number | null | undefined) =>
+    v == null || Number.isNaN(v) ? '—' : (Math.round(v * 10) / 10).toString()
+
+  const deltaBadge = (v: number | null | undefined) => {
+    if (v == null || Number.isNaN(v)) return <span className="text-gray-400">—</span>
+    const sign = v > 0 ? '+' : ''
+    const color = v > 0 ? 'text-rose-600' : v < 0 ? 'text-emerald-600' : 'text-gray-600'
+    return <span className={`text-xs ${color}`}>{sign}{fmt1(v)} kg</span>
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-        <ProgressRing value={kpi.proteinPct} label="단백질" />
-        <div>
-          <div className="text-sm text-gray-500">오늘 단백질</div>
-          <div className="text-lg font-semibold text-gray-900">{kpi.proteinPct}%</div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+          <Utensils className="w-4 h-4" />
+          최근 7일 평균 칼로리
         </div>
+        <div className="text-2xl font-semibold">{fmt0(data?.kcal7d)} kcal</div>
       </div>
-      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-        <ProgressRing value={kpi.kcalPct} label="칼로리" />
-        <div>
-          <div className="text-sm text-gray-500">권장 범위 대비</div>
-          <div className="text-lg font-semibold text-gray-900">{kpi.kcalPct}%</div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+          <Activity className="w-4 h-4" />
+          최근 7일 근력 볼륨 MA
         </div>
+        <div className="text-2xl font-semibold">{fmt0(data?.volume7d)}</div>
       </div>
-      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-800 text-lg font-semibold">{kpi.workoutSessions}/{kpi.workoutGoal}</div>
-        <div>
-          <div className="text-sm text-gray-500">주간 운동 세션</div>
-          <div className="text-lg font-semibold text-gray-900">목표 {kpi.workoutGoal}회</div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+          <Bed className="w-4 h-4" />
+          최근 7일 수면 MA
         </div>
+        <div className="text-2xl font-semibold">{fmt0(data?.sleep7d)} 분</div>
       </div>
-      <div className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 text-gray-800 text-lg font-semibold">{kpi.sleepHoursAvg}h</div>
-        <div>
-          <div className="text-sm text-gray-500">최근 7일 평균 수면</div>
-          <div className="text-lg font-semibold text-gray-900">{kpi.sleepHoursAvg}시간</div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+          <Scale className="w-4 h-4" />
+          체중 MA Δ
         </div>
-      </div>
-      <div className="col-span-full">
-        <div className="w-full h-10 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500">
-          ConfidenceMeter 자리 (추가 예정)
+        <div className="text-2xl font-semibold flex items-baseline gap-2">
+          {deltaBadge(data?.weightDelta7d)}
         </div>
       </div>
     </div>
   )
 }
-
-

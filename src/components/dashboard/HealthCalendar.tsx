@@ -1,3 +1,4 @@
+// src/components/dashboard/HealthCalendar.tsx
 "use client"
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
@@ -8,6 +9,8 @@ import { supabase, auth } from '@/lib/supabase'
 type Props = {
   onDateSelect?: (dateISO: string) => void
   compact?: boolean
+  from?: Date|string
+  to?: Date|string
 }
 
 const HealthCalendar: React.FC<Props> = ({ onDateSelect = undefined, compact = false }) => {
