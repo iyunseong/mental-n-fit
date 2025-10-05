@@ -7,7 +7,8 @@ export type WorkoutPayload = {
   exercises?: ReadonlyArray<WorkoutExercise>;  // strength
   cardio_type?: CardioType;                    // cardio
   duration_min?: number;
-  avg_pace_sec?: number; // 초 단위
+  distance_km?: number | null;
+  avg_pace_min?: number; // 분/km
 };
 
 

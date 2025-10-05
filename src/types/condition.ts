@@ -1,3 +1,4 @@
+// src/types/condition.ts
 export type ConditionPayload = {
   date: string;
   bed_time?: string;

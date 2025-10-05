@@ -8,12 +8,20 @@ import { CARD, INPUT, BTN, BTN_SOLID, BTN_OUTLINE, BTN_GHOST } from '@/lib/ui/to
 import FormShell from './_FormShell';
 import { safeMutate } from '@/lib/swrSafe';
 import { swrKeys } from '@/lib/swrKeys';
-import { saveMeal, listRecentMeals, loadMealEventItems, type RecentMealSummary } from '@/actions/meals';
 import { searchFood } from '@/lib/food/searchFood';
 import { supabase } from '@/lib/supabase';
 import type { MealForm, MealItemInput, MealType } from '@/types/meal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/Button';
+
+// ===== 로컬 타입 =====
+type RecentMealSummary = {
+  event_id: number;
+  date: string;   // YYYY-MM-DD
+  time: string;   // HH:mm
+  meal_type: string | null;
+  foods: string[];
+};
 
 // 소수 1자리 반올림
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -41,7 +49,7 @@ type MealItemsRow = {
   id: number;
   food_id: number | null;
   custom_food_name: string | null;
-  quantity: number | null;        // DB 저장된 섭취량(g)
+  quantity: number | null;
   carb_g: number | null;
   protein_g: number | null;
   fat_g: number | null;
@@ -94,13 +102,12 @@ export default function MealLogForm({
 
   // 각 항목의 100g 기준 영양(검색 추가 시 채움)과 섭취량(g), 자동계산 여부
   const [per100, setPer100] = useState<Array<{ carb_g?: number; protein_g?: number; fat_g?: number }>>([]);
-  const [amounts, setAmounts] = useState<number[]>([]);      // 섭취량(g)
-  const [autoCalc, setAutoCalc] = useState<boolean[]>([]);   // true면 섭취량 기반 자동 계산
+  const [amounts, setAmounts] = useState<number[]>([]);
+  const [autoCalc, setAutoCalc] = useState<boolean[]>([]);
 
   // (UI 안내용) 병합된 이벤트 수
   const [mergedCount, setMergedCount] = useState<number>(0);
 
-  // useFieldArray.remove 래핑: 로컬 상태도 같이 삭제
   const removeItem = useCallback((index: number) => {
     remove(index);
     setPer100(p => p.filter((_, i) => i !== index));
@@ -153,8 +160,8 @@ export default function MealLogForm({
       id: normalized.id,
     });
     setPer100(p => [...p, { carb_g: normalized.carb_g, protein_g: normalized.protein_g, fat_g: normalized.fat_g }]);
-    setAmounts(a => [...a, 100]);     // 기본 100g
-    setAutoCalc(a => [...a, true]);   // 자동계산 on
+    setAmounts(a => [...a, 100]);
+    setAutoCalc(a => [...a, true]);
     setSearchQuery('');
     setSearchResults([]);
   };
@@ -169,7 +176,6 @@ export default function MealLogForm({
     if (autoCalc[index]) {
       const base = per100[index] ?? {};
       const factor = (isFinite(nextAmount) ? nextAmount : 0) / 100;
-      // RHF 값 업데이트
       setTimeout(() => {
         setValue(`items.${index}.carb_g`,    base.carb_g    != null ? round1((base.carb_g as number)    * factor) : undefined, { shouldDirty: true });
         setValue(`items.${index}.protein_g`, base.protein_g != null ? round1((base.protein_g as number) * factor) : undefined, { shouldDirty: true });
@@ -189,103 +195,173 @@ export default function MealLogForm({
     return goal > 0 ? Math.min(100, Math.round((totalProtein / goal) * 100)) : 0;
   }, [totalProtein]);
 
-  // (date, mealType) 변경 시 DB에서 해당 기록 로드 → RHF 주입
-// (date, mealType) 변경 시 DB에서 해당 기록 로드 → RHF 주입
-useEffect(() => {
-  let cancelled = false;
+  // ===== (date, mealType) 변경 시 DB에서 해당 기록 로드 → RHF 주입 =====
+  useEffect(() => {
+    let cancelled = false;
 
-  async function loadExisting() {
-    if (!date || !mealType) return;
+    async function loadExisting() {
+      if (!date || !mealType) return;
 
-    const { data, error } = await supabase
+      const { data, error } = await supabase
+        .from('meal_events')
+        .select(`
+          id,
+          ate_at,
+          meal_type,
+          notes,
+          meal_items (
+            id,
+            food_id,
+            custom_food_name,
+            quantity,
+            carb_g,
+            protein_g,
+            fat_g,
+            fiber_g,
+            food_db:food_id ( name )
+          )
+        `)
+        .eq('date', date)
+        .eq('meal_type', mealType)
+        .order('ate_at', { ascending: true });
+
+      if (cancelled) return;
+
+      if (error || !data || data.length === 0) {
+        reset({ ...getValues(), items: [], notes: undefined }, { keepDirty: false });
+        setPer100([]);
+        setAmounts([]);
+        setAutoCalc([]);
+        setMergedCount(0);
+        return;
+      }
+
+      // 같은 (날짜, meal_type) 안에 여러 이벤트가 있다면 병합해서 표시
+      const mergedItems = data.flatMap((ev) =>
+        (ev.meal_items ?? []).map((mi) => {
+          const fd = mi.food_db as { name?: string | null } | Array<{ name?: string | null }> | null;
+          const foodName = Array.isArray(fd) ? (fd[0]?.name ?? '') : (fd?.name ?? '');
+          return {
+            id: mi.food_id ?? undefined,
+            name: mi.custom_food_name ?? foodName ?? '',
+            quantity_g: Number(mi.quantity ?? 0),
+            carb_g: mi.carb_g == null ? undefined : Number(mi.carb_g),
+            protein_g: mi.protein_g == null ? undefined : Number(mi.protein_g),
+            fat_g: mi.fat_g == null ? undefined : Number(mi.fat_g),
+            fiber_g: mi.fiber_g == null ? undefined : Number(mi.fiber_g),
+          };
+        })
+      );
+
+      // 시간은 가장 마지막 이벤트의 ate_at 사용
+      const last = data[data.length - 1];
+      const hhmm = (() => {
+        try { return new Date(last.ate_at).toTimeString().slice(0, 5); }
+        catch { return getValues().time ?? '00:00'; }
+      })();
+
+      reset(
+        {
+          ...getValues(),
+          time: hhmm,
+          items: mergedItems,
+          notes: (data[data.length - 1]?.notes ?? undefined) as string | undefined,
+        },
+        { keepDirty: false }
+      );
+
+      // DB에서 로딩된 항목은 모두 수동 모드
+      setPer100(mergedItems.map(() => ({})));
+      setAmounts(mergedItems.map((it) => Number(it.quantity_g ?? 0)));
+      setAutoCalc(mergedItems.map(() => false));
+      setMergedCount(data.length);
+    }
+
+    loadExisting();
+    return () => { cancelled = true; };
+  }, [date, mealType, reset, getValues]);
+
+  // ===== 클라이언트용: 최근 식사 불러오기 =====
+  async function listRecentMealsClient(limit = 20): Promise<RecentMealSummary[]> {
+    const { data: events, error } = await supabase
+      .from('meal_events')
+      .select('id, date, ate_at, meal_type')
+      .order('ate_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    if (!events?.length) return [];
+
+    const ids = events.map(e => e.id);
+    const { data: items, error: itemErr } = await supabase
+      .from('meal_items')
+      .select('meal_event_id, custom_food_name')
+      .in('meal_event_id', ids);
+
+    if (itemErr) throw itemErr;
+
+    const foodsByEvent = new Map<number, string[]>();
+    (items ?? []).forEach((it: any) => {
+      const arr = foodsByEvent.get(it.meal_event_id) ?? [];
+      if (it.custom_food_name) arr.push(it.custom_food_name);
+      foodsByEvent.set(it.meal_event_id, arr);
+    });
+
+    return events.map(ev => {
+      let time = '00:00';
+      try { time = new Date(ev.ate_at as string).toTimeString().slice(0,5); } catch {}
+      return {
+        event_id: ev.id,
+        date: ev.date as string,
+        time,
+        meal_type: (ev.meal_type as string) ?? null,
+        foods: foodsByEvent.get(ev.id) ?? [],
+      };
+    });
+  }
+
+  async function loadMealEventItemsClient(eventId: number): Promise<{ items: MealItemInput[]; notes?: string }> {
+    const { data: ev, error } = await supabase
       .from('meal_events')
       .select(`
         id,
-        ate_at,
-        meal_type,
         notes,
         meal_items (
-          id,
-          food_id,
           custom_food_name,
           quantity,
           carb_g,
           protein_g,
           fat_g,
-          fiber_g,
-          food_db:food_id ( name )
+          fiber_g
         )
       `)
-      .eq('date', date)
-      .eq('meal_type', mealType)            // ✅ 탭에서 선택한 식사 종류만 로드
-      .order('ate_at', { ascending: true });
+      .eq('id', eventId)
+      .maybeSingle();
 
-    if (cancelled) return;
+    if (error) throw error;
+    if (!ev) return { items: [] };
 
-    if (error || !data || data.length === 0) {
-      // 기록 없음 → 폼 초기화(항목 비우고, 기존 time 유지)
-      reset(
-        { ...getValues(), items: [], notes: undefined },
-        { keepDirty: false }
-      );
-      setPer100([]);
-      setAmounts([]);
-      setAutoCalc([]);
-      setMergedCount(0);
-      return;
-    }
+    const items: MealItemInput[] = (ev.meal_items ?? []).map((mi: any) => ({
+      name: mi.custom_food_name ?? '',
+      quantity_g: mi.quantity == null ? undefined : Number(mi.quantity),
+      carb_g:     mi.carb_g    == null ? undefined : Number(mi.carb_g),
+      protein_g:  mi.protein_g == null ? undefined : Number(mi.protein_g),
+      fat_g:      mi.fat_g     == null ? undefined : Number(mi.fat_g),
+      fiber_g:    mi.fiber_g   == null ? undefined : Number(mi.fiber_g),
+    }));
 
-    // 같은 (날짜, meal_type) 안에 여러 이벤트가 있다면 병합해서 표시
-    const mergedItems = data.flatMap((ev) =>
-      (ev.meal_items ?? []).map((mi) => {
-        const fd = mi.food_db as { name?: string | null } | Array<{ name?: string | null }> | null;
-        const foodName =
-          Array.isArray(fd) ? (fd[0]?.name ?? '') : (fd?.name ?? '');
-        return {
-          id: mi.food_id ?? undefined,
-          name: mi.custom_food_name ?? foodName ?? '',
-          quantity_g: Number(mi.quantity ?? 0),
-          carb_g: mi.carb_g == null ? undefined : Number(mi.carb_g),
-          protein_g: mi.protein_g == null ? undefined : Number(mi.protein_g),
-          fat_g: mi.fat_g == null ? undefined : Number(mi.fat_g),
-          fiber_g: mi.fiber_g == null ? undefined : Number(mi.fiber_g),
-        };
-      })
-    );
-
-    // 시간은 가장 마지막 이벤트의 ate_at 사용(가장 최근 기록을 대표로)
-    const last = data[data.length - 1];
-    const hhmm = (() => {
-      try { return new Date(last.ate_at).toTimeString().slice(0, 5); }
-      catch { return getValues().time ?? '00:00'; }
-    })();
-
-    reset(
-      {
-        ...getValues(),
-        time: hhmm,
-        items: mergedItems,
-        notes: (data[data.length - 1]?.notes ?? undefined) as string | undefined,
-      },
-      { keepDirty: false }
-    );
-
-    // DB에서 로딩된 항목은 모두 수동 모드(원본 값 보존)
-    setPer100(mergedItems.map(() => ({})));
-    setAmounts(mergedItems.map((it) => Number(it.quantity_g ?? 0)));
-    setAutoCalc(mergedItems.map(() => false));
-    setMergedCount(data.length);
+    return { items, notes: ev.notes ?? undefined };
   }
 
-  loadExisting();
-  return () => { cancelled = true; };
-}, [date, mealType, reset, getValues]);
-
-
-  // 저장
+  // ===== 저장 (클라이언트 Supabase로 직접 처리) =====
   const onSubmit = async (data: MealForm) => {
     try {
-      // 자동계산 항목은 섭취량 기준으로 최종 값 보정
+      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      if (userErr) throw userErr;
+      const user = userRes?.user;
+      if (!user) throw new Error('no-auth');
+
+      // 자동계산 항목 보정
       const computedItems = (data.items ?? []).map((it, i) => {
         if (autoCalc[i]) {
           const base = per100[i] ?? {};
@@ -302,15 +378,68 @@ useEffect(() => {
         return it;
       });
 
-      const payload: MealForm = { ...data, items: computedItems };
-      await saveMeal(payload);
+      const ateAt = new Date(`${data.date}T${data.time ?? '12:00'}`).toISOString();
 
+      // 1) 기존 (user, date, meal_type) 이벤트 조회 & 삭제(병합 정책)
+      const { data: old, error: oldErr } = await supabase
+        .from('meal_events')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('date', data.date)
+        .eq('meal_type', data.meal_type);
+
+      if (oldErr) throw oldErr;
+
+      if (old && old.length) {
+        const ids = old.map(r => r.id);
+        const { error: delItemsErr } = await supabase.from('meal_items').delete().in('meal_event_id', ids);
+        if (delItemsErr) throw delItemsErr;
+        const { error: delEventsErr } = await supabase.from('meal_events').delete().in('id', ids);
+        if (delEventsErr) throw delEventsErr;
+      }
+
+      // 2) 새 이벤트 생성
+      const { data: inserted, error: insErr } = await supabase
+        .from('meal_events')
+        .insert({
+          user_id: user.id,
+          date: data.date,
+          ate_at: ateAt,
+          meal_type: data.meal_type,
+          notes: data.notes ?? null,
+          total_calories: null, // 필요 시 합산해서 넣어도 됨
+        })
+        .select('id')
+        .single();
+
+      if (insErr) throw insErr;
+      const eventId = inserted!.id as number;
+
+      // 3) 항목 벌크 삽입
+      const items = (computedItems ?? []).map(it => ({
+        meal_event_id: eventId,
+        food_id: it.id ?? null,
+        custom_food_name: it.id ? null : (it.name || null),
+        quantity: it.quantity_g ?? null,
+        carb_g: it.carb_g ?? null,
+        protein_g: it.protein_g ?? null,
+        fat_g: it.fat_g ?? null,
+        fiber_g: it.fiber_g ?? null,
+      }));
+
+      if (items.length) {
+        const { error: itemErr } = await supabase.from('meal_items').insert(items);
+        if (itemErr) throw itemErr;
+      }
+
+      // 4) SWR 키 갱신
       await Promise.all([
-        safeMutate(swrKeys.summary(payload.date)),
+        safeMutate(swrKeys.summary(data.date)),
         safeMutate(swrKeys.kpiToday),
-        safeMutate(swrKeys.missions(payload.date)),
+        safeMutate(swrKeys.missions(data.date)),
         safeMutate(swrKeys.recent('meal')),
       ]);
+
       onSaved?.();
     } catch (error) {
       console.error('Failed to save meal:', error);
@@ -318,17 +447,16 @@ useEffect(() => {
     }
   };
 
-  /* ---------- 최근 식사 불러오기(타입 무시) ---------- */
+  /* ---------- 최근 식사 불러오기 ---------- */
   const [prevOpen, setPrevOpen] = useState(false);
   const [prevLoading, setPrevLoading] = useState(false);
   const [recentMeals, setRecentMeals] = useState<RecentMealSummary[]>([]);
 
   const openPreviousPicker = async () => {
-    if (!date) return;
     setPrevOpen(true);
     setPrevLoading(true);
     try {
-      const rows = await listRecentMeals(date, 20);
+      const rows = await listRecentMealsClient(20);
       setRecentMeals(rows);
     } catch {
       setRecentMeals([]);
@@ -340,14 +468,13 @@ useEffect(() => {
   const pickPreviousEvent = async (eventId: number) => {
     const currentDate = watch('date');
     const currentMealType = watch('meal_type');
-    const loaded = await loadMealEventItems(eventId);
-    // 현재 날짜/식사에 붙여넣기 (시간은 기존 유지, 원하면 loaded.time 사용해도 됨)
+    const loaded = await loadMealEventItemsClient(eventId);
     const mergedItems = loaded.items ?? [];
     reset(
       {
         ...getValues(),
         date: currentDate,
-        time: getValues().time, // 또는 loaded.time ?? getValues().time
+        time: getValues().time,
         meal_type: currentMealType,
         items: mergedItems,
         notes: loaded.notes ?? undefined,
@@ -458,9 +585,9 @@ useEffect(() => {
           {addMode === 'manual' && (
             <ManualAddForm
               onAdd={(item) => {
-                append(item);                    // 그대로 추가(수동)
-                setPer100((p) => [...p, {}]);    // 기준 없음
-                setAmounts((a) => [...a, NaN]);  // 섭취량 미사용
+                append(item);
+                setPer100((p) => [...p, {}]);
+                setAmounts((a) => [...a, NaN]);
                 setAutoCalc((a) => [...a, false]);
               }}
             />
@@ -582,7 +709,7 @@ useEffect(() => {
         </div>
       </form>
 
-      {/* 최근 식사 불러오기 모달 (meal_type 무시, 최신 20개 이벤트) */}
+      {/* 최근 식사 불러오기 모달 */}
       <Dialog open={prevOpen} onOpenChange={setPrevOpen}>
         <DialogContent>
           <DialogHeader>
@@ -605,7 +732,9 @@ useEffect(() => {
                   className="w-full text-left rounded-lg border px-3 py-2 hover:bg-gray-50"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">{row.date} <span className="text-gray-500">· {row.time}</span></div>
+                    <div className="text-sm font-medium">
+                      {row.date} <span className="text-gray-500">· {row.time}</span>
+                    </div>
                     {row.meal_type && (
                       <span className="text-[11px] px-2 py-0.5 rounded bg-gray-100 text-gray-700">{row.meal_type}</span>
                     )}

@@ -20,13 +20,17 @@
 - **운동 로그** - 근력/유산소 운동 기록 및 볼륨 분석
 - **식사 관리** - 영양소 분석 및 식사 패턴 추적
 - **일일 컨디션** - 수면, 기분, 에너지, 스트레스 수준 기록
-- **건강 캘린더** - 일별 건강 상태 시각화
+- **건강 캘린더** - 일별 건강 상태 시각화 (4색 점 시스템)
 - **빠른 추가** - 최근 프리셋을 활용한 원클릭 기록
+- **컨디션 트렌드 차트** - 에너지/스트레스/기분 변화 추이 분석
+- **일일 요약 사이드바** - 선택한 날짜의 종합 건강 상태
 
 ### 📈 데이터 분석 및 인사이트
 - **트렌드 차트** - 체성분, 운동 볼륨, 식사 패턴 변화 추이
+- **컨디션 트렌드 분석** - 에너지/스트레스/기분의 시간대별 변화 추이
 - **KPI 헤더** - 핵심 건강 지표 요약
 - **일일 요약** - 선택한 날짜의 종합 건강 상태
+- **건강 캘린더** - 4색 점 시스템으로 일별 기록 상태 시각화
 
 ## 🛠 기술 스택
 
@@ -38,6 +42,8 @@
 - **Charts**: Recharts
 - **Data Fetching**: SWR
 - **Testing**: Playwright
+- **Calendar**: React Calendar
+- **Theme**: Next Themes (Light/Dark mode support)
 
 ## 📋 설치 및 설정
 
@@ -87,9 +93,18 @@ src/
 │   ├── login/                    # 로그인 페이지
 │   ├── register/                 # 회원가입 페이지
 │   ├── dashboard/                # 보호된 대시보드 페이지
+│   ├── profile/                  # 프로필 페이지
+│   ├── records/[date]/           # 날짜별 기록 페이지
+│   ├── results/                  # 결과 페이지
 │   ├── survey/                   # MetaType 16 설문 페이지
+│   ├── ForceLight.tsx            # 강제 라이트 모드 컴포넌트
 │   ├── api/                      # API 라우트
-│   │   └── meals/               # 식사 관련 API
+│   │   ├── debug/whoami/        # 디버그 API
+│   │   ├── kpi/                 # KPI API
+│   │   ├── kpi-today/           # 오늘 KPI API
+│   │   ├── meals/               # 식사 관련 API
+│   │   ├── missions/            # 미션 API
+│   │   └── trend/[kind]/        # 트렌드 API
 │   ├── globals.css              # 전역 스타일
 │   ├── layout.tsx               # 루트 레이아웃
 │   └── providers.tsx            # 전역 프로바이더
@@ -98,7 +113,9 @@ src/
 │   │   ├── Button.tsx           # 버튼 컴포넌트
 │   │   ├── Card.tsx             # 카드 컴포넌트
 │   │   ├── Container.tsx        # 컨테이너 컴포넌트
-│   │   └── dialog.tsx           # 다이얼로그 컴포넌트
+│   │   ├── CircleProgress.tsx   # 원형 진행률 컴포넌트
+│   │   ├── dialog.tsx           # 다이얼로그 컴포넌트
+│   │   └── LogoutButton.tsx     # 로그아웃 버튼
 │   ├── forms/                   # 폼 컴포넌트
 │   │   ├── InbodyForm.tsx       # 인바디 측정 폼
 │   │   ├── WorkoutLogForm.tsx   # 운동 기록 폼
@@ -107,20 +124,29 @@ src/
 │   │   └── _FormShell.tsx       # 폼 공통 셸
 │   ├── dashboard/               # 대시보드 컴포넌트
 │   │   ├── KPIHeader.tsx        # KPI 헤더
-│   │   ├── HealthCalendar.tsx   # 건강 캘린더
+│   │   ├── KPIHeaderClient.tsx  # KPI 헤더 클라이언트
+│   │   ├── HealthCalendar.tsx   # 건강 캘린더 (4색 점 시스템)
 │   │   ├── DailyLogView.tsx     # 일일 로그 뷰
 │   │   ├── DailySummarySidebar.tsx # 일일 요약 사이드바
 │   │   ├── InbodyTrendChart.tsx # 인바디 트렌드 차트
 │   │   ├── VolumeTrendChart.tsx # 운동 볼륨 차트
 │   │   ├── MealTrendChart.tsx   # 식사 트렌드 차트
+│   │   ├── ConditionTrendChart.tsx # 컨디션 트렌드 차트
+│   │   ├── ConditionHistoryDialog.tsx # 컨디션 히스토리 다이얼로그
 │   │   ├── QuickAddRail.tsx     # 빠른 추가 레일
-│   │   └── NudgeRow.tsx         # 알림 행
+│   │   ├── NudgeCard.tsx        # 알림 카드
+│   │   ├── NudgeRow.tsx         # 알림 행
+│   │   ├── RangeToggle.tsx      # 범위 토글
+│   │   └── TodaySnapshot.tsx    # 오늘 스냅샷
 │   ├── internal/                # 내부 컴포넌트
 │   │   ├── InbodyFormInner.tsx  # 인바디 폼 내부
-│   │   └── WorkoutLogFormInner.tsx # 운동 폼 내부
+│   │   ├── WorkoutLogFormInner.tsx # 운동 폼 내부
+│   │   ├── MealLogFormInner.tsx # 식사 폼 내부
+│   │   └── DailyConditionFormInner.tsx # 컨디션 폼 내부
 │   └── NavBar.tsx               # 네비게이션 바
 ├── lib/                         # 유틸리티 및 설정
 │   ├── supabase/                # Supabase 관련
+│   │   ├── client.ts            # 클라이언트 사이드 클라이언트
 │   │   └── server.ts            # 서버 사이드 클라이언트
 │   ├── date/                    # 날짜 유틸리티
 │   ├── food/                    # 음식 검색 유틸리티
@@ -440,6 +466,23 @@ components/ui/*.tsx → components/forms/*.tsx → app/dashboard/page.tsx
 - **최근 프리셋 활용** - 이전에 기록한 데이터를 빠르게 재사용
 - **원클릭 기록** - 자주 사용하는 운동이나 식사를 빠르게 추가
 
+### 🗓️ 건강 캘린더 (NEW!)
+- **4색 점 시스템** - 컨디션(파랑), 운동(초록), 식단(주황), 인바디(보라) 기록 상태를 색상으로 표시
+- **월별 데이터 조회** - 효율적인 데이터 로딩으로 빠른 캘린더 렌더링
+- **날짜별 기록 확인** - 특정 날짜 클릭 시 해당 날의 기록 상태 확인
+- **범례 시스템** - 각 색상이 의미하는 바를 명확히 표시
+
+### 📊 컨디션 트렌드 분석 (NEW!)
+- **시간대별 에너지 추이** - 아침/점심/저녁 에너지 수준 변화 그래프
+- **스트레스 패턴 분석** - 시간대별 스트레스 수준 변화 추이
+- **기분 이동평균** - 7일 이동평균을 통한 기분 변화 트렌드
+- **데이터 시각화** - 직관적인 라인 차트로 패턴 파악 용이
+
+### 👤 프로필 관리 (NEW!)
+- **사용자 프로필** - 개인 정보 및 설정 관리
+- **날짜별 기록 보기** - 특정 날짜의 상세 기록 확인
+- **테마 설정** - 라이트/다크 모드 지원
+
 ## 🚀 배포
 
 ### Vercel 배포
@@ -456,7 +499,8 @@ components/ui/*.tsx → components/forms/*.tsx → app/dashboard/page.tsx
 -- 주요 테이블들
 daily_conditions     # 일일 컨디션 (수면, 기분, 에너지, 스트레스)
 inbody_logs         # 인바디 측정값 (체중, 근육량, 체지방률)
-workout_sessions    # 운동 세션 (근력/유산소)
+workout_sessions    # 운동 세션 (근력/유산소(거리 입력시 평균페이스 자동 계산))
+ - cardio_type, duration_min, distance_km, avg_pace_min ...
 workout_sets        # 운동 세트 (운동명, 세트, 횟수, 무게)
 meal_events         # 식사 이벤트
 meal_items          # 식사 아이템 (음식, 영양소)
@@ -479,6 +523,8 @@ export const auth = {
 ### 서버 액션 (`src/actions/`)
 ```typescript
 // 예: 체성분 데이터 저장
+ - WorkoutPayLoad와 세션 row 타입에 distance_km?: number | null 추가
+ - saveWorkout, saveWorkoutReplace, loadWorkoutByDate, loadPreviousWorkoutDetail가 distance_km을 읽고/저장
 export async function saveInbodyLog(data: InbodyLogData) {
   const { data: result, error } = await supabase
     .from('inbody_logs')
@@ -548,6 +594,12 @@ export async function middleware(req: NextRequest) {
 - **일일 컨디션** - 수면, 기분, 에너지, 스트레스 관리
 - **데이터 시각화** - 차트를 통한 트렌드 분석
 - **빠른 추가** - 프리셋 기반 원클릭 기록
+- **건강 캘린더** - 4색 점 시스템으로 일별 기록 상태 시각화
+- **컨디션 트렌드 차트** - 에너지/스트레스/기분 변화 추이 분석
+- **일일 요약 사이드바** - 선택한 날짜의 종합 건강 상태
+- **프로필 페이지** - 사용자 프로필 관리
+- **날짜별 기록 페이지** - 특정 날짜의 상세 기록 보기
+- **라이트/다크 모드** - 테마 시스템 지원
 
 ### 🚧 개발 중인 기능
 - **음식 데이터베이스** - 확장된 음식 정보 및 영양소 데이터
@@ -562,12 +614,21 @@ export async function middleware(req: NextRequest) {
 
 ## 📊 프로젝트 통계
 
-- **총 컴포넌트**: 30+ 개
+- **총 컴포넌트**: 40+ 개
+- **대시보드 컴포넌트**: 15개
+- **폼 컴포넌트**: 5개
+- **UI 컴포넌트**: 7개
 - **데이터베이스 테이블**: 6개
 - **MetaType 프로필**: 16개
-- **API 엔드포인트**: 10+ 개
+- **API 엔드포인트**: 8개
+- **페이지**: 8개
 - **테스트 커버리지**: Playwright 기반 E2E 테스트
+
+### DB 마이그레이션
+```sql
+ALTER TABLE workout_sessions
+ADD COLUMN IF NOT EXISTS distance_km numeric;
+
 
 ## 📞 지원
 
-문제가 있거나 질문이 있으시면 이슈를 생성해주세요!

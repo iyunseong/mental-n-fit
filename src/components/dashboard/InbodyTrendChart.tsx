@@ -1,73 +1,60 @@
 'use client'
 
-import React, { useMemo } from 'react'
-import useSWR from 'swr'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
-import { swrKeys } from '@/lib/swrKeys'
-import { getRange } from '@/lib/date/getRange'
+import { useEffect, useState } from 'react'
+import { supabase, auth } from '@/lib/supabase'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts'
 
-type Props = {
-  refreshTrigger?: number
-  from?: Date | string
-  to?: Date | string
-}
-
+type Props = { from: string; to: string; height?: number }
 type Row = {
   date: string
-  weight_kg: number | null
-  weight_ma7: number | null
-  body_fat_percentage: number | null
-  skeletal_muscle_mass_kg: number | null
+  weight_kg?: number | null
+  weight_ma7?: number | null
+  skeletal_muscle_mass_kg?: number | null
+  body_fat_percentage?: number | null
 }
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`)
-  return res.json()
-}
+export default function InbodyTrendChart({ from, to, height = 260 }: Props) {
+  const [rows, setRows] = useState<Row[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
 
-const ensureISO = (d?: Date | string): string => {
-  if (!d) return ''
-  if (typeof d === 'string') return d.slice(0, 10)
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    .toISOString()
-    .slice(0, 10)
-}
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        setLoading(true); setErr(null)
+        if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') { setRows([]); return }
+        const u = await auth.getCurrentUser(); if (!u) throw new Error('no-auth')
+        const { data, error } = await supabase
+          .from('vw_inbody_trend')
+          .select('date,weight_kg,weight_ma7,skeletal_muscle_mass_kg,body_fat_percentage')
+          .gte('date', from).lte('date', to).order('date', { ascending: true })
+        if (error) throw error
+        if (mounted) setRows((data ?? []) as Row[])
+      } catch (e: any) { if (mounted) setErr(e?.message ?? 'error') }
+      finally { if (mounted) setLoading(false) }
+    })()
+    return () => { mounted = false }
+  }, [from, to])
 
-const EmptyState = () => (
-  <div className="h-56 flex items-center justify-center text-sm text-gray-500">
-    데이터가 없습니다. InBody를 기록해 보세요.
-  </div>
-)
-
-export default function InbodyTrendChart({ refreshTrigger = 0, from, to }: Props) {
-  const fallback = getRange(30, 'Asia/Seoul')
-  const fromISO = ensureISO(from) || fallback.fromISO
-  const toISO = ensureISO(to) || fallback.toISO
-
-  const key = [...swrKeys.trend('inbody', fromISO, toISO), String(refreshTrigger)] as const
-  const { data, error, isLoading } = useSWR<Row[]>(
-    key,
-    () => fetcher(`/api/trend/inbody?from=${fromISO}&to=${toISO}`),
-    { revalidateOnFocus: false, keepPreviousData: true }
-  )
-
-  const rows = useMemo(() => (data ?? []).sort((a, b) => a.date.localeCompare(b.date)), [data])
-
-  if (isLoading) return <div className="h-56 animate-pulse bg-gray-50 rounded-lg" />
-  if (!rows?.length) return <EmptyState />
+  if (loading) return <div className="text-sm text-gray-500">불러오는 중…</div>
+  if (err) return <div className="text-sm text-red-600">로딩 실패</div>
+  if (!rows.length) return <div className="text-sm text-gray-500">표시할 데이터가 없습니다.</div>
 
   return (
-    <div className="w-full h-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={rows}>
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer>
+        <LineChart data={rows} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" tickMargin={8} />
-          <YAxis yAxisId="left" tickMargin={8} />
+          <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+          <YAxis yAxisId="l" width={40} />
+          <YAxis yAxisId="r" orientation="right" width={40} />
           <Tooltip />
           <Legend />
-          <Line yAxisId="left" type="monotone" dataKey="weight_kg" name="체중(kg)" strokeWidth={1.5} dot={false} />
-          <Line yAxisId="left" type="monotone" dataKey="weight_ma7" name="체중(7d MA)" strokeWidth={2.2} dot={false} />
+          <Line yAxisId="l" type="monotone" dataKey="weight_kg"               name="체중(kg)"     dot={false} stroke="#2563EB" strokeWidth={2.2} activeDot={{ r: 4 }} />
+          <Line yAxisId="l" type="monotone" dataKey="weight_ma7"              name="체중 7d MA"   dot={false} stroke="#1E40AF" strokeWidth={2.6} activeDot={{ r: 4 }} />
+          <Line yAxisId="l" type="monotone" dataKey="skeletal_muscle_mass_kg" name="골격근량(kg)" dot={false} stroke="#10B981" strokeWidth={2.0} activeDot={{ r: 4 }} />
+          <Line yAxisId="r" type="monotone" dataKey="body_fat_percentage"     name="체지방(%)"    dot={false} stroke="#EF4444" strokeWidth={2.0} activeDot={{ r: 4 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>

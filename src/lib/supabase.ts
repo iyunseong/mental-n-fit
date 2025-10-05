@@ -1,4 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+// import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
+
 import { UserProfile } from './authTypes'
 
 // Supabase 프로젝트 설정값들
@@ -13,7 +15,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Supabase 클라이언트 인스턴스 생성 (싱글톤 패턴)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
 
 // 인증 관련 헬퍼 함수들
 export const auth = {

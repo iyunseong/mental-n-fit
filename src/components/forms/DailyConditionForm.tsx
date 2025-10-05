@@ -1,3 +1,4 @@
+// src/components/forms/DailyConditionForm.tsx
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -12,6 +13,7 @@ import { saveDailyCondition, saveConditionJournals } from '@/actions/conditions'
 import type { ConditionPayload } from '@/types/condition';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/Button';
+import { useRouter } from 'next/navigation';
 
 type RecentPresetRow<T> = { id: string; payload: Partial<T> };
 
@@ -172,6 +174,7 @@ export default function DailyConditionForm({
   onSaved?: () => void;
 }) {
   const dateISO = selectedDate ?? toLocalDateISO();
+  const router = useRouter();
 
   const { register, handleSubmit, setValue, watch, reset, formState } = useForm<ConditionPayload>({
     defaultValues: {
@@ -357,20 +360,33 @@ export default function DailyConditionForm({
   }, [date, reset]);
 
   const onSubmit = async (v: ConditionPayload) => {
-    await saveDailyCondition(v); // (user_id, log_date) 기준 upsert
+    const {data: { user } } = await supabase.auth.getUser();
+    await saveDailyCondition(v, { userIdOverride: user?.id }); // (user_id, log_date) 기준 upsert
+    await saveConditionJournals({
+      date: v.date,
+      journal_day: v.journal_day ?? null,
+      journal_gratitude: v.journal_gratitude ?? null,
+      journal_feedback: v.journal_feedback ?? null,
+    }, { userIdOverride: user?.id });
+    
+    const today = toLocalDateISO();
+    
     // 저널을 별도로 저장하고 싶으면 아래도 실행 (같은 테이블에 upsert)
     await saveConditionJournals({
       date: v.date,
       journal_day: v.journal_day ?? null,
       journal_gratitude: v.journal_gratitude ?? null,
       journal_feedback: v.journal_feedback ?? null,
-    });
+    }, { userIdOverride: user?.id });
     await Promise.all([
       safeMutate(swrKeys.summary(v.date)),
-      safeMutate(swrKeys.kpiToday),
+      safeMutate(swrKeys.kpi(v.date, v.date)),
       safeMutate(swrKeys.missions(v.date)),
+       // 오늘인 경우 대시보드용 today 키도 무효화
+      v.date === today ? safeMutate(swrKeys.kpi(today, today)) : Promise.resolve(),
     ]);
     onSaved?.();
+    router.push(`/records/${v.date}`);
   };
 
   const openJournalModal = () => {
@@ -382,25 +398,43 @@ export default function DailyConditionForm({
   };
 
   const saveJournals = async () => {
+    // ⬇️ saveJournals 스코프에서 user, today 각각 선언
+    const { data: { user } } = await supabase.auth.getUser();
     const dateVal = watch('date');
     await saveConditionJournals({
       date: dateVal,
       journal_day: journalDay || null,
       journal_gratitude: journalThanks || null,
       journal_feedback: journalFeedback || null,
-    });
+    }, { userIdOverride: user?.id });
+
+    const today = toLocalDateISO();
+  
+    await saveConditionJournals(
+      {
+        date: dateVal,
+        journal_day: journalDay || null,
+        journal_gratitude: journalThanks || null,
+        journal_feedback: journalFeedback || null,
+      },
+      { userIdOverride: user?.id }
+    );
+  
     await Promise.all([
       safeMutate(swrKeys.summary(dateVal)),
-      safeMutate(swrKeys.kpiToday),
+      safeMutate(swrKeys.kpi(dateVal, dateVal)),
       safeMutate(swrKeys.missions(dateVal)),
+      dateVal === today ? safeMutate(swrKeys.kpi(today, today)) : Promise.resolve(),
     ]);
-    // 폼에도 반영
+  
+    // 폼 반영
     setValue('journal_day', journalDay || undefined, { shouldDirty: true });
     setValue('journal_gratitude', journalThanks || undefined, { shouldDirty: true });
     setValue('journal_feedback', journalFeedback || undefined, { shouldDirty: true });
     setJournalOpen(false);
   };
 
+  
   return (
     <div className="max-w-screen-sm mx-auto">
       <SummaryBar sleepMin={sleepMin} sleepPct={sleepPct} mood={mood} qSleep={qSleep} avgEnergy={avgEnergy} avgStress={avgStress} />

@@ -1,80 +1,53 @@
 'use client'
 
-import React, { useMemo } from 'react'
-import useSWR from 'swr'
-import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
-import { swrKeys } from '@/lib/swrKeys'
-import { getRange } from '@/lib/date/getRange'
+import { useEffect, useState } from 'react'
+import { supabase, auth } from '@/lib/supabase'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts'
 
-type Props = {
-  refreshTrigger?: number
-  from?: Date | string
-  to?: Date | string
-}
+type Props = { from: string; to: string; height?: number }
+type Row = { date: string; volume?: number | null; volume_ma7?: number | null; cardio_min?: number | null }
 
-type Row = {
-  date: string
-  volume: number | null
-  volume_ma7: number | null
-  cardio_min: number | null
-  cardio_min_ma7: number | null
-}
+export default function VolumeTrendChart({ from, to, height = 260 }: Props) {
+  const [rows, setRows] = useState<Row[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`)
-  return res.json()
-}
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        setLoading(true); setErr(null)
+        if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') { setRows([]); return }
+        const u = await auth.getCurrentUser(); if (!u) throw new Error('no-auth')
+        const { data, error } = await supabase
+          .from('vw_workout_trend')
+          .select('date,volume,volume_ma7,cardio_min')
+          .gte('date', from).lte('date', to).order('date', { ascending: true })
+        if (error) throw error
+        if (mounted) setRows((data ?? []) as Row[])
+      } catch (e: any) { if (mounted) setErr(e?.message ?? 'error') }
+      finally { if (mounted) setLoading(false) }
+    })()
+    return () => { mounted = false }
+  }, [from, to])
 
-const ensureISO = (d?: Date | string): string => {
-  if (!d) return ''
-  if (typeof d === 'string') return d.slice(0, 10)
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    .toISOString()
-    .slice(0, 10)
-}
-
-const EmptyState = () => (
-  <div className="h-56 flex items-center justify-center text-sm text-gray-500">
-    데이터가 없습니다. 운동 세트 또는 유산소 시간을 기록해 보세요.
-  </div>
-)
-
-export default function VolumeTrendChart({ refreshTrigger = 0, from, to }: Props) {
-  const fallback = getRange(30, 'Asia/Seoul')
-  const fromISO = ensureISO(from) || fallback.fromISO
-  const toISO = ensureISO(to) || fallback.toISO
-
-  const key = [...swrKeys.trend('workout', fromISO, toISO), String(refreshTrigger)] as const
-  const { data, error, isLoading } = useSWR<Row[]>(
-    key,
-    () => fetcher(`/api/trend/workout?from=${fromISO}&to=${toISO}`),
-    { revalidateOnFocus: false, keepPreviousData: true }
-  )
-
-  const rows = useMemo(() => (data ?? []).sort((a, b) => a.date.localeCompare(b.date)), [data])
-
-  if (isLoading) return <div className="h-56 animate-pulse bg-gray-50 rounded-lg" />
-  if (!rows?.length) return <EmptyState />
+  if (loading) return <div className="text-sm text-gray-500">불러오는 중…</div>
+  if (err) return <div className="text-sm text-red-600">로딩 실패</div>
+  if (!rows.length) return <div className="text-sm text-gray-500">표시할 데이터가 없습니다.</div>
 
   return (
-    <div className="w-full h-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={rows}>
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer>
+        <LineChart data={rows} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" tickMargin={8} />
-          <YAxis yAxisId="left" tickMargin={8} />
-          <YAxis yAxisId="right" orientation="right" tickMargin={8} />
+          <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+          <YAxis yAxisId="l" width={40} />
+          <YAxis yAxisId="r" orientation="right" width={40} />
           <Tooltip />
           <Legend />
-          {/* 일별 근력 볼륨 막대 */}
-          <Bar yAxisId="left" dataKey="volume" name="볼륨(일별)" />
-          {/* 7일 이동평균 라인 */}
-          <Line yAxisId="left" type="monotone" dataKey="volume_ma7" name="볼륨(7d MA)" strokeWidth={2.2} dot={false} />
-          {/* 유산소 분(선택) */}
-          <Line yAxisId="right" type="monotone" dataKey="cardio_min" name="유산소(분)" strokeWidth={1.2} dot={false} />
-          <Line yAxisId="right" type="monotone" dataKey="cardio_min_ma7" name="유산소(7d MA)" strokeWidth={1.8} dot={false} />
-        </ComposedChart>
+          <Line yAxisId="l" type="monotone" dataKey="volume_ma7" name="근력 볼륨 7d MA" dot={false} stroke="#111827" strokeWidth={2.8} activeDot={{ r: 4 }} />
+          <Line yAxisId="r" type="monotone" dataKey="cardio_min"  name="유산소(분)"         dot={false} stroke="#0EA5E9" strokeWidth={2.0} activeDot={{ r: 4 }} />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   )

@@ -1,103 +1,90 @@
-// src/components/dashboard/HealthCalendar.tsx
 "use client"
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { supabase, auth } from '@/lib/supabase'
+import { toDateKey } from '@/lib/date/toLocalDateISO'
+import { useRouter } from 'next/navigation'
 
 type Props = {
+  /** 선택 시 외부 사이드바 등 갱신용 콜백(선택) */
   onDateSelect?: (dateISO: string) => void
+  /** 컴팩트 모드(카드 내부 작은 캘린더) */
   compact?: boolean
-  from?: Date|string
-  to?: Date|string
 }
 
-const HealthCalendar: React.FC<Props> = ({ onDateSelect = undefined, compact = false }) => {
+type DayBadge = {
+  hasWorkout?: boolean
+  hasMeal?: boolean
+  hasInbody?: boolean
+  hasCondition?: boolean
+}
+
+const HealthCalendar: React.FC<Props> = ({ onDateSelect, compact = false }) => {
+  const router = useRouter()
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  interface MoodRecord {
-    log_date: string
-    overall_mood: 'great' | 'good' | 'normal' | 'bad' | 'awful'
-    fatigue_level: 'low' | 'medium' | 'high'
-    sleep_quality: 'good' | 'normal' | 'bad'
-    diary_entry?: string | null
-  }
-  const [monthlyMoods, setMonthlyMoods] = useState<Record<string, MoodRecord>>({})
+  const [dayBadges, setDayBadges] = useState<Record<string, DayBadge>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [legendOpen, setLegendOpen] = useState(!compact)
+  const [legendOpen, setLegendOpen] = useState(true)
 
-  const moodEmojis: Record<string, string> = {
-    great: '🤩',
-    good: '😊',
-    normal: '😐',
-    bad: '😔',
-    awful: '😵'
-  }
-
-  const fatigueColors: Record<string, string> = {
-    low: '#10B981',
-    medium: '#F59E0B',
-    high: '#EF4444'
-  }
-
-  const sleepColors: Record<string, string> = {
-    good: '#3B82F6',
-    normal: '#6B7280',
-    bad: '#8B5CF6'
-  }
-
-  const fetchMonthlyMoods = useCallback(async (date: Date) => {
+  const fetchMonth = useCallback(async (date: Date) => {
     try {
       if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') {
-        setMonthlyMoods({})
+        setDayBadges({})
         return
       }
       setIsLoading(true)
       setError('')
 
-      const currentUser = await auth.getCurrentUser()
-      if (!currentUser) {
-        throw new Error('로그인이 필요합니다.')
-      }
+      const u = await auth.getCurrentUser()
+      if (!u) throw new Error('로그인이 필요합니다.')
 
-      const year = date.getFullYear()
-      const month = date.getMonth()
-      const firstDay = new Date(year, month, 1).toISOString().split('T')[0]
-      const lastDay = new Date(year, month + 1, 0).toISOString().split('T')[0]
+      // 월의 1일 ~ 말일(로컬) 범위
+      const y = date.getFullYear()
+      const m = date.getMonth()
+      const firstKey = toDateKey(new Date(y, m, 1))
+      const lastKey  = toDateKey(new Date(y, m + 1, 0))
 
-      const { data, error: fetchError } = await supabase
-        .from('daily_conditions')
-        .select('log_date, overall_mood, fatigue_level, sleep_quality, diary_entry')
-        .eq('user_id', currentUser.id)
-        .gte('log_date', firstDay)
-        .lte('log_date', lastDay)
+      // 뷰에서 user_id = auth.uid() 필터가 이미 있다면 eq는 생략 가능
+      const qWorkout = supabase.from('vw_workout_trend')
+        .select('date').gte('date', firstKey).lte('date', lastKey)
+      const qMeal = supabase.from('vw_meal_trend')
+        .select('date').gte('date', firstKey).lte('date', lastKey)
+      const qInbody = supabase.from('vw_inbody_trend')
+        .select('date').gte('date', firstKey).lte('date', lastKey)
+      const qCondition = supabase.from('vw_daily_conditions_trend')
+        .select('date').gte('date', firstKey).lte('date', lastKey)
 
-      if (fetchError) throw fetchError
+      const [{ data: w, error: we },
+             { data: mdata, error: me },
+             { data: i, error: ie },
+             { data: c, error: ce }] = await Promise.all([qWorkout, qMeal, qInbody, qCondition])
 
-      const moodMap: Record<string, MoodRecord> = {}
-      data?.forEach((record: any) => {
-        moodMap[record.log_date] = record
-      })
-      setMonthlyMoods(moodMap)
+      if (we) throw we; if (me) throw me; if (ie) throw ie; if (ce) throw ce
+
+      const badges: Record<string, DayBadge> = {}
+      ;(w ?? []).forEach((r: any) => { const k = r.date as string; badges[k] = { ...(badges[k]||{}), hasWorkout:   true }})
+      ;(mdata ?? []).forEach((r: any) => { const k = r.date as string; badges[k] = { ...(badges[k]||{}), hasMeal:     true }})
+      ;(i ?? []).forEach((r: any) => { const k = r.date as string; badges[k] = { ...(badges[k]||{}), hasInbody:   true }})
+      ;(c ?? []).forEach((r: any) => { const k = r.date as string; badges[k] = { ...(badges[k]||{}), hasCondition:true }})
+
+      setDayBadges(badges)
     } catch (err: any) {
-      const msg = err && typeof err === 'object' && 'message' in err ? err.message : JSON.stringify(err || {})
-      console.warn('월별 컨디션 데이터 가져오기 오류:', msg)
-      setError(msg || '데이터를 가져오는 중 오류가 발생했습니다.')
+      setError(err?.message ?? '달력 데이터를 불러오지 못했습니다.')
     } finally {
       setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchMonthlyMoods(selectedDate)
-  }, [selectedDate, fetchMonthlyMoods])
+    fetchMonth(selectedDate)
+  }, [selectedDate, fetchMonth])
 
   const onActiveStartDateChange = ({ activeStartDate }: { activeStartDate: Date }) => {
-    if (activeStartDate) fetchMonthlyMoods(activeStartDate)
+    if (activeStartDate) fetchMonth(activeStartDate)
   }
-
-  const loggedDaysCount = useMemo(() => Object.keys(monthlyMoods || {}).length, [monthlyMoods])
 
   type ValuePiece = Date | null
   type CalendarValue = ValuePiece | [ValuePiece, ValuePiece]
@@ -105,70 +92,57 @@ const HealthCalendar: React.FC<Props> = ({ onDateSelect = undefined, compact = f
     const date = Array.isArray(value) ? value[0] : value
     if (!date) return
     setSelectedDate(date)
-    if (typeof onDateSelect === 'function') {
-      onDateSelect(date.toISOString().split('T')[0])
-    }
+
+    const key = toDateKey(date)
+    // 외부 콜백(사이드바 등)도 유지
+    if (typeof onDateSelect === 'function') onDateSelect(key)
+    // ✅ 상세 페이지로 이동
+    router.push(`/records/${key}`)
   }
 
   const getTileContent = ({ date, view }: { date: Date; view: string }) => {
     if (view !== 'month') return null
-    const dateString = date.toISOString().split('T')[0]
-    const moodData = monthlyMoods[dateString]
-    if (!moodData) return null
-    const moodEmoji = moodEmojis[moodData.overall_mood]
-    const hasDiary = moodData.diary_entry && moodData.diary_entry.trim().length > 0
+    const key = toDateKey(date)
+    const b = dayBadges[key]
+    if (!b) return null
     return (
-      <div className="flex flex-col items-center justify-center">
-        <span className={`${compact ? 'text-base' : 'text-lg'}`}>{moodEmoji}</span>
-        <div className="flex items-center space-x-1 mt-0.5">
-          <div 
-            className={`${compact ? 'w-1 h-1' : 'w-2 h-2'} rounded-full`}
-            style={{ backgroundColor: fatigueColors[moodData.fatigue_level] }}
-          />
-          <div 
-            className={`${compact ? 'w-1 h-1' : 'w-2 h-2'} rounded-full`}
-            style={{ backgroundColor: sleepColors[moodData.sleep_quality] }}
-          />
-          {hasDiary && (
-            <div className={`${compact ? 'text-xs' : 'text-xs'}`}>📖</div>
-          )}
-        </div>
+      <div className="mt-1 flex items-center justify-center gap-1">
+        {b.hasWorkout   && <span title="운동"    className={`${compact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-indigo-500 inline-block`} />}
+        {b.hasMeal      && <span title="식단"    className={`${compact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-emerald-500 inline-block`} />}
+        {b.hasInbody    && <span title="인바디"  className={`${compact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-amber-500 inline-block`} />}
+        {b.hasCondition && <span title="컨디션"  className={`${compact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full bg-sky-500 inline-block`} />}
       </div>
     )
   }
 
   const getTileClassName = ({ date, view }: { date: Date; view: string }) => {
     if (view !== 'month') return undefined
-    const dateString = date.toISOString().split('T')[0]
-    const moodData = monthlyMoods[dateString]
+    const key = toDateKey(date)
     const classes: string[] = []
-    if (moodData) classes.push('rc-has-data')
-    if (dateString === new Date().toISOString().split('T')[0]) classes.push('rc-today')
+    if (dayBadges[key]) classes.push('rc-has-data')
     return classes.join(' ')
   }
 
-  const selectedDateString = selectedDate.toISOString().split('T')[0]
-  const moodData = monthlyMoods[selectedDateString]
-  const hasDiary = moodData?.diary_entry && moodData.diary_entry.trim().length > 0
-
   return (
     <div className={`${compact ? 'p-4' : 'max-w-4xl mx-auto p-6'} bg-white rounded-lg shadow-sm border border-gray-200 dark:bg-gray-900 dark:border-gray-800`}>
-      {!compact && (
-        <div className="flex items-center justify-between mb-4">
-          <div className="space-y-1">
-            <h2 className="text-2xl font-bold text-gray-900">건강 캘린더</h2>
-            <p className="text-sm text-gray-600">날짜를 클릭하여 해당 날의 상세 기록을 확인하세요</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">기록된 날: <strong className="text-gray-700">{loggedDaysCount}</strong></span>
-            <button
-              type="button"
-              onClick={() => setLegendOpen(!legendOpen)}
-              className="px-3 py-1.5 rounded-md text-sm border border-gray-200 hover:bg-gray-50 text-gray-700"
-            >
-              {legendOpen ? '범례 숨기기' : '범례 보기'}
-            </button>
-          </div>
+      {/* 범례 + 토글 */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-700">범례</h2>
+        <button
+          type="button"
+          onClick={() => setLegendOpen((v) => !v)}
+          className="px-2 py-1 text-xs border rounded-md hover:bg-gray-50"
+        >
+          {legendOpen ? '범례 숨기기' : '범례 보기'}
+        </button>
+      </div>
+
+      {legendOpen && (
+        <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-gray-600">
+          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-indigo-500 inline-block" />운동 기록</div>
+          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />식단 기록</div>
+          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />인바디 기록</div>
+          <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-sky-500 inline-block" />컨디션 기록</div>
         </div>
       )}
 
@@ -184,47 +158,7 @@ const HealthCalendar: React.FC<Props> = ({ onDateSelect = undefined, compact = f
         </div>
       )}
 
-      {!compact && legendOpen && (
-        <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">📖 범례</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-            <div>
-              <h4 className="font-medium text-gray-600 mb-1">기분</h4>
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2"><span>🤩</span><span>최고</span></div>
-                <div className="flex items-center space-x-2"><span>😊</span><span>좋음</span></div>
-                <div className="flex items-center space-x-2"><span>😐</span><span>보통</span></div>
-                <div className="flex items-center space-x-2"><span>😔</span><span>나쁨</span></div>
-                <div className="flex items-center space-x-2"><span>😵</span><span>최악</span></div>
-              </div>
-            </div>
-            <div>
-              <h4 className="font-medium text-gray-600 mb-1">피로도</h4>
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2"><div className="w-3 h-3 rounded-full bg-green-500"></div><span>낮음</span></div>
-                <div className="flex items-center space-x-2"><div className="w-3 h-3 rounded-full bg-amber-500"></div><span>보통</span></div>
-                <div className="flex items-center space-x-2"><div className="w-3 h-3 rounded-full bg-red-500"></div><span>높음</span></div>
-              </div>
-            </div>
-            <div>
-              <h4 className="font-medium text-gray-600 mb-1">수면의 질</h4>
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div><span>좋음</span></div>
-                <div className="flex items-center space-x-2"><div className="w-3 h-3 rounded-full bg-gray-500"></div><span>보통</span></div>
-                <div className="flex items-center space-x-2"><div className="w-3 h-3 rounded-full bg-purple-500"></div><span>나쁨</span></div>
-              </div>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-gray-600 mb-1">일기</h4>
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2"><span>📖</span><span>일기 있음</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className={`mb-4`}>
+      <div className="mb-2">
         <Calendar
           onChange={handleDateChange}
           onActiveStartDateChange={onActiveStartDateChange as any}
@@ -238,83 +172,17 @@ const HealthCalendar: React.FC<Props> = ({ onDateSelect = undefined, compact = f
         />
       </div>
 
-      {!compact && selectedDate && (
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="text-lg font-medium text-blue-800 mb-3">
-            {selectedDate.toLocaleDateString('ko-KR', { 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric',
-              weekday: 'long'
-            })}
-          </h3>
-          {moodData ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div className="text-center">
-                  <div className="text-2xl mb-1">{moodEmojis[moodData.overall_mood]}</div>
-                  <div className="font-medium">기분: {
-                    moodData.overall_mood === 'great' ? '최고' :
-                    moodData.overall_mood === 'good' ? '좋음' :
-                    moodData.overall_mood === 'normal' ? '보통' :
-                    moodData.overall_mood === 'bad' ? '나쁨' : '최악'
-                  }</div>
-                </div>
-                <div className="text-center">
-                  <div 
-                    className="w-6 h-6 rounded-full mx-auto mb-1"
-                    style={{ backgroundColor: fatigueColors[moodData.fatigue_level] }}
-                  />
-                  <div className="font-medium">피로도: {
-                    moodData.fatigue_level === 'low' ? '낮음' :
-                    moodData.fatigue_level === 'medium' ? '보통' : '높음'
-                  }</div>
-                </div>
-                <div className="text-center">
-                  <div 
-                    className="w-6 h-6 rounded-full mx-auto mb-1"
-                    style={{ backgroundColor: sleepColors[moodData.sleep_quality] }}
-                  />
-                  <div className="font-medium">수면의 질: {
-                    moodData.sleep_quality === 'good' ? '좋음' :
-                    moodData.sleep_quality === 'normal' ? '보통' : '나쁨'
-                  }</div>
-                </div>
-              </div>
-              {hasDiary && (
-                <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="text-lg">📖</span>
-                    <h4 className="font-medium text-amber-800">오늘의 일기</h4>
-                  </div>
-                  <p className="text-amber-700 leading-relaxed whitespace-pre-wrap">
-                    {moodData.diary_entry}
-                  </p>
-                </div>
-              )}
-              <div className="mt-4">
-                <p className="text-blue-700 text-sm">💡 이 날의 모든 건강 기록(운동, 식사, 인바디 등)을 보려면 날짜를 클릭하세요.</p>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-500">
-              <p>이 날의 컨디션 기록이 없습니다.</p>
-              <p className="text-sm mt-1">컨디션 기록 탭에서 기록을 추가해보세요.</p>
-            </div>
-          )}
-        </div>
-      )}
-
       <style jsx>{`
         :global(.react-calendar) { border: none !important; font-family: inherit; width: 100% !important; margin: 0 auto; display: block; }
         :global(.react-calendar__viewContainer), :global(.react-calendar__month-view) { width: 100% !important; }
-        :global(.react-calendar__tile) { position: relative; height: ${compact ? '72px' : '92px'}; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 6px 4px; border-radius: 10px; }
+        :global(.react-calendar__tile) { position: relative; height: ${compact ? '72px' : '92px'}; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 6px 4px; border-radius: 10px; cursor: pointer; }
         :global(.react-calendar__tile:enabled:hover), :global(.react-calendar__tile:enabled:focus) { background-color: #f1f5f9; }
-        :global(.react-calendar__tile--active) { background-color: #0ea5e9 !important; color: white !important; }
-        :global(.react-calendar__tile--now) { background-color: #fef3c7; }
+        /* 선택(파란) 배경 제거 */
+        :global(.react-calendar__tile--active) { background: transparent !important; color: inherit !important; }
+        /* 오늘=노란색 강조 (내일은 표시 없음) */
+        :global(.react-calendar__tile--now) { background-color: #FEF3C7 !important; box-shadow: inset 0 0 0 2px #F59E0B; }
         :global(.rc-has-data) { background-color: ${compact ? '#f8fafc' : '#f8fafc'}; box-shadow: inset 0 0 0 1px #e5e7eb; }
         :global(.rc-has-data:hover) { background-color: #eef2ff; }
-        :global(.rc-today) { box-shadow: inset 0 0 0 2px #93c5fd; }
         :global(.react-calendar__month-view__weekdays) { text-transform: none; font-weight: bold; font-size: ${compact ? '0.75rem' : '0.875rem'}; }
         :global(.react-calendar__navigation) { margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: center; }
         :global(.react-calendar__navigation button) { font-size: ${compact ? '0.875rem' : '1rem'}; color: #374151; }
@@ -325,5 +193,3 @@ const HealthCalendar: React.FC<Props> = ({ onDateSelect = undefined, compact = f
 }
 
 export default HealthCalendar
-
-

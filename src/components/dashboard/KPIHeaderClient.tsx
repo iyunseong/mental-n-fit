@@ -1,111 +1,108 @@
 'use client'
 
-import useSWR from 'swr'
-import { Utensils, Activity, Bed, Scale } from 'lucide-react'
-import { swrKeys } from '@/lib/swrKeys'
-import { getRange } from '@/lib/date/getRange'
-import React from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { supabase, auth } from '@/lib/supabase'
 
-type Props = {
-  from?: Date | string
-  to?: Date | string
-}
+type Props = { from: string; to: string }
 
-type KPIResponse = {
-  kcal7d: number | null
-  volume7d: number | null
-  sleep7d: number | null
-  weightDelta7d: number | null
-}
-
-const fetcher = async (url: string) => {
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`)
-  return res.json()
-}
-
-const ensureISO = (d?: Date | string): string => {
-  if (!d) return ''
-  if (typeof d === 'string') return d.slice(0, 10)
-  // YYYY-MM-DD in local TZ
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    .toISOString()
-    .slice(0, 10)
-}
-
-const Skeleton = () => (
-  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-    {[0, 1, 2, 3].map((i) => (
-      <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="h-4 w-24 bg-gray-100 animate-pulse rounded mb-3" />
-        <div className="h-6 w-16 bg-gray-100 animate-pulse rounded" />
-      </div>
-    ))}
-  </div>
-)
+type MealRow = { date: string; kcal: number | null; kcal_ma7: number | null }
+type WorkoutRow = { date: string; volume: number | null; volume_ma7: number | null }
+type CondRow = { date: string; sleep_minutes?: number | null; sleep_ma7?: number | null }
+type BodyRow = { date: string; weight_kg: number | null; weight_ma7: number | null }
 
 export default function KPIHeaderClient({ from, to }: Props) {
-  // 기본값: 최근 30일 (서버에서 from/to를 안 넘긴 경우)
-  const fallback = getRange(30, 'Asia/Seoul')
-  const fromISO = ensureISO(from) || fallback.fromISO
-  const toISO = ensureISO(to) || fallback.toISO
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
 
-  const key = swrKeys.kpi(fromISO, toISO)
-  const { data, error, isLoading } = useSWR<KPIResponse>(
-    key,
-    () => fetcher(`/api/kpi?from=${fromISO}&to=${toISO}`),
-    { revalidateOnFocus: false, keepPreviousData: true }
-  )
+  const [kcal7, setKcal7] = useState<number | null>(null)
+  const [vol7, setVol7] = useState<number | null>(null)
+  const [sleep7, setSleep7] = useState<number | null>(null)
+  const [weightDelta, setWeightDelta] = useState<number | null>(null)
 
-  if (isLoading) return <Skeleton />
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        setLoading(true); setErr(null)
 
-  const fmt0 = (v: number | null | undefined) =>
-    v == null || Number.isNaN(v) ? '—' : Math.round(v).toString()
+        if (process.env.NEXT_PUBLIC_E2E_BYPASS_AUTH === '1') {
+          // 테스트 모드: 빈값
+          if (!mounted) return
+          setKcal7(null); setVol7(null); setSleep7(null); setWeightDelta(null)
+          return
+        }
 
-  const fmt1 = (v: number | null | undefined) =>
-    v == null || Number.isNaN(v) ? '—' : (Math.round(v * 10) / 10).toString()
+        const user = await auth.getCurrentUser()
+        if (!user) throw new Error('no-auth')
 
-  const deltaBadge = (v: number | null | undefined) => {
-    if (v == null || Number.isNaN(v)) return <span className="text-gray-400">—</span>
-    const sign = v > 0 ? '+' : ''
-    const color = v > 0 ? 'text-rose-600' : v < 0 ? 'text-emerald-600' : 'text-gray-600'
-    return <span className={`text-xs ${color}`}>{sign}{fmt1(v)} kg</span>
+        // 병렬 조회
+        const [meal, workout, cond, body] = await Promise.all([
+          supabase.from('vw_meal_trend')
+            .select('date,kcal,kcal_ma7')
+            .gte('date', from).lte('date', to).order('date', { ascending: true }),
+          supabase.from('vw_workout_trend')
+            .select('date,volume,volume_ma7')
+            .gte('date', from).lte('date', to).order('date', { ascending: true }),
+          supabase.from('vw_daily_conditions_trend')
+            .select('date,sleep_ma7')
+            .gte('date', from).lte('date', to).order('date', { ascending: true }),
+          supabase.from('vw_inbody_trend')
+            .select('date,weight_kg,weight_ma7')
+            .gte('date', from).lte('date', to).order('date', { ascending: true }),
+        ])
+
+        const mealRows = (meal.data ?? []) as MealRow[]
+        const workoutRows = (workout.data ?? []) as WorkoutRow[]
+        const condRows = (cond.data ?? []) as CondRow[]
+        const bodyRows = (body.data ?? []) as BodyRow[]
+
+        // KPI 계산
+        const last = <T,>(rows: T[]) => rows.length ? rows[rows.length - 1] : undefined
+
+        setKcal7(last(mealRows)?.kcal_ma7 ?? null)
+        setVol7(last(workoutRows)?.volume_ma7 ?? null)
+        setSleep7(last(condRows)?.sleep_ma7 ?? null)
+
+        // 체중 MA Δ: 범위 내 첫 MA7과 마지막 MA7 차이
+        const firstMA = bodyRows.find(r => r.weight_ma7 != null)?.weight_ma7 ?? null
+        const lastMA = last(bodyRows)?.weight_ma7 ?? null
+        setWeightDelta((firstMA != null && lastMA != null) ? (lastMA - firstMA) : null)
+
+      } catch (e: any) {
+        console.warn(e)
+        if (mounted) setErr(e?.message ?? 'error')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    })()
+    return () => { mounted = false }
+  }, [from, to])
+
+  const fmtK = (n: number | null) => n == null ? '—' : `${Math.round(n)} kcal`
+  const fmtM = (n: number | null) => n == null ? '—' : `${Math.round(n)} 분`
+  const fmtVol = (n: number | null) => n == null ? '—' : `${Math.round(n)}`
+  const fmtDelta = (n: number | null) => {
+    if (n == null) return '—'
+    const sign = n > 0 ? '+' : ''
+    return `${sign}${n.toFixed(1)} kg`
   }
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-          <Utensils className="w-4 h-4" />
-          최근 7일 평균 칼로리
-        </div>
-        <div className="text-2xl font-semibold">{fmt0(data?.kcal7d)} kcal</div>
-      </div>
+      <KPI title="최근 7일 평균 kcal" value={fmtK(kcal7)} loading={loading} error={err} />
+      <KPI title="최근 7일 근력 볼륨 MA" value={fmtVol(vol7)} loading={loading} error={err} />
+      <KPI title="최근 7일 수면 MA" value={fmtM(sleep7)} loading={loading} error={err} />
+      <KPI title="체중 MA Δ" value={fmtDelta(weightDelta)} loading={loading} error={err} />
+    </div>
+  )
+}
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-          <Activity className="w-4 h-4" />
-          최근 7일 근력 볼륨 MA
-        </div>
-        <div className="text-2xl font-semibold">{fmt0(data?.volume7d)}</div>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-          <Bed className="w-4 h-4" />
-          최근 7일 수면 MA
-        </div>
-        <div className="text-2xl font-semibold">{fmt0(data?.sleep7d)} 분</div>
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-          <Scale className="w-4 h-4" />
-          체중 MA Δ
-        </div>
-        <div className="text-2xl font-semibold flex items-baseline gap-2">
-          {deltaBadge(data?.weightDelta7d)}
-        </div>
+function KPI({ title, value, loading, error }: { title: string; value: string; loading: boolean; error: string | null }) {
+  return (
+    <div className="rounded-xl border bg-white p-4 shadow-sm">
+      <div className="text-xs text-gray-500">{title}</div>
+      <div className="mt-1 text-2xl font-semibold">
+        {loading ? <span className="text-gray-400">불러오는 중…</span> : error ? <span className="text-red-600">오류</span> : value}
       </div>
     </div>
   )
